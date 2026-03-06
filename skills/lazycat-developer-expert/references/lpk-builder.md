@@ -106,6 +106,9 @@ lzc-cli docker exec -it <container_name> sh
 2. 拷贝成功后，工具会返回一个 `registry.lazycat.cloud/...` 开头的地址。
 3. **必须**将 `lzc-manifest.yml` 中的镜像地址替换为这个官方返回的地址。
 
+### 7. 上架商店与审核 (Store Publishing)
+当用户需要将应用正式上架到懒猫应用商店时，请读取 `references/store-publish.md` 获取完整的上架流程、审核规则和社区激励信息。
+
 ## 平台特定的规则与护栏 (Guardrails)
 
 在帮助用户生成配置文件时，必须遵守以下懒猫微服平台的红线规则：
