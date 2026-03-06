@@ -81,14 +81,28 @@ lzc-cli app install release.lpk
 lzc-cli project devshell
 ```
 
-## 5. 镜像处理规范 (Image Handling)
+### 5. 查看与调试已部署应用 (Inspecting Deployed Apps)
+如果作为智能体的你需要**查看已经部署或正在运行的懒猫应用**（例如查看运行状态、日志、排查报错），你必须**主动使用 `lzc-cli docker`** 前缀的指令来操作微服内的 Docker 环境。
+```bash
+# 查看微服内正在运行的容器（寻找你的应用容器名或ID）
+lzc-cli docker ps -a
+
+# 查看指定应用的运行日志排错
+lzc-cli docker logs -f --tail 100 <container_name>
+
+# 进入已部署应用的容器内部排查问题
+lzc-cli docker exec -it <container_name> sh
+```
+
+## 6. 镜像处理规范 (Image Handling)
 在打包和测试过程中，镜像的来源非常关键：
 
 **开发测试阶段 (Testing):**
 如果盒子拉取原生镜像（如 Docker Hub）缓慢或失败，必须将镜像推送到微服的测试仓库：
-1. 重新 tag 镜像：`docker tag <原镜像> dev.<微服名>.heiyu.space/<镜像名>:<版本>`
-2. 推送镜像：`docker push dev.<微服名>.heiyu.space/<镜像名>:<版本>`
-3. 在 `lzc-manifest.yml` 中使用该测试镜像地址。
+1. **主动获取微服名**：作为智能体，当需要使用 `<微服名>` 时，你应当**主动执行 `lzc-cli box default`** 命令来获取当前的默认微服名称，而**不要**询问用户或使用占位符。
+2. 重新 tag 镜像：`docker tag <原镜像> dev.<微服名>.heiyu.space/<镜像名>:<版本>`
+3. 推送镜像：`docker push dev.<微服名>.heiyu.space/<镜像名>:<版本>`
+4. 在 `lzc-manifest.yml` 中使用该测试镜像地址。
 
 **正式发布阶段 (Publishing):**
 在上架商店前，必须将镜像拷贝到官方托管仓库以保证稳定性：
