@@ -11,7 +11,6 @@
 - `lazycat-dynamic-deploy`: 处理懒猫动态部署的能手。
 - `lazycat-advanced-routing`: 设置懒猫高级路由规则（如二级域名、内网通信）。
 - `lazycat-auth-integration`: 处理懒猫微服 API 获取、OIDC 登录认证。
-- `lazycat-sdk-dev`: 辅助由于懒猫微服 SDK 对接的代码开发。
 
 ## 🚀 安装指南
 

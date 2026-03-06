@@ -63,13 +63,13 @@ oidc issuer info
 
 ```json
 {
-"issuer": "https://snyht13.heiyu.space/sys/oauth",
-"authorization_endpoint": "https://snyht13.heiyu.space/sys/oauth/auth",
-"token_endpoint": "https://snyht13.heiyu.space/sys/oauth/token",
-"jwks_uri": "https://snyht13.heiyu.space/sys/oauth/keys",
-"userinfo_endpoint": "https://snyht13.heiyu.space/sys/oauth/userinfo",
-"device_authorization_endpoint": "https://snyht13.heiyu.space/sys/oauth/device/code",
-"introspection_endpoint": "https://snyht13.heiyu.space/sys/oauth/token/introspect",
+"issuer": "https://your-box-name.heiyu.space/sys/oauth",
+"authorization_endpoint": "https://your-box-name.heiyu.space/sys/oauth/auth",
+"token_endpoint": "https://your-box-name.heiyu.space/sys/oauth/token",
+"jwks_uri": "https://your-box-name.heiyu.space/sys/oauth/keys",
+"userinfo_endpoint": "https://your-box-name.heiyu.space/sys/oauth/userinfo",
+"device_authorization_endpoint": "https://your-box-name.heiyu.space/sys/oauth/device/code",
+"introspection_endpoint": "https://your-box-name.heiyu.space/sys/oauth/token/introspect",
 "grant_types_supported": [
 "authorization_code",
 "refresh_token",

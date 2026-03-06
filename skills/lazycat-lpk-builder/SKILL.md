@@ -111,7 +111,7 @@ lzc-cli docker exec -it <container_name> sh
 3. **必须**将 `lzc-manifest.yml` 中的镜像地址替换为这个官方返回的地址。
 
 ### 7. 上架商店与审核 (Store Publishing)
-当用户需要将应用正式上架到懒猫应用商店时，请读取 `references/store-publish.md` 获取完整的上架流程、审核规则和社区激励信息。
+当用户需要将应用正式上架到懒猫应用商店时，请读取 `references/store-publish.md` 获取完整的上架流程和审核规则。
 
 ## 平台特定的规则与护栏 (Guardrails)
 
