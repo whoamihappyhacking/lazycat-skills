@@ -3,3 +3,15 @@ node_modules
 .env
 .DS_Store
 *.lpk
+
+# 第三方安装的技能（npx skills add 安装的，不要提交）
+.agents/
+.agent/
+.claude/
+.augment/
+.qwen/
+.codebuddy/
+.continue/
+.cortex/
+skills-lock.json
+skills/changelog-maintenance
