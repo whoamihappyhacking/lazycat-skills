@@ -1,0 +1,76 @@
+# lzc-manifest.yml
+
+# 应用元数据
+# package: 应用的全局唯一ID，建议使用反向域名格式。
+# version: 应用版本号，遵循语义化版本规范。
+# name: 应用显示名称。
+# description: 应用的简短描述。
+# author: 应用作者。
+package: com.example.transmission
+version: 1.0.0
+name: Transmission
+description: A Fast, Easy and Free BitTorrent Client
+author: "The Transmission Project"
+
+# 应用核心配置
+application:
+  # 分配给此应用的子域名，您可以通过 http://transmission.your-lazycat-domain.com 访问 Web UI。
+  subdomain: transmission
+  # HTTP 路由规则，将所有到此子域名的流量转发到 transmission 服务的 9091 端口。
+  upstreams:
+    - location: /
+      backend: http://transmission:9091
+  
+  # TCP/UDP 端口转发规则，用于 BitTorrent 的传入连接。
+  ingress:
+    # 转发 TCP 流量
+    - protocol: tcp
+      port: 51413
+      service: transmission # 目标服务为 'transmission'
+      publish_port: "51413" # 暴露在宿主机上的端口
+      description: "Transmission P2P TCP Port"
+    # 转发 UDP 流量
+    - protocol: udp
+      port: 51413
+      service: transmission # 目标服务为 'transmission'
+      publish_port: "51413" # 暴露在宿主机上的端口
+      description: "Transmission P2P UDP Port"
+
+# 定义应用所需的服务（容器）
+services:
+  # 定义一个名为 'transmission' 的服务
+  transmission:
+    # 使用 linuxserver.io 官方的 transmission 镜像
+    image: lscr.io/linuxserver/transmission:latest
+    
+    # 【重要】指定容器运行的用户和组。请务必修改为您自己的 PUID 和 PGID。
+    user: "1000:1000" 
+    
+    # 环境变量配置
+    environment:
+      # 【重要】PUID (User ID) 和 PGID (Group ID) 用于设置文件权限。
+      # 请在您的宿主机上运行 `id` 命令获取您的用户ID和组ID，并替换下面的值。
+      PUID: "1000"
+      PGID: "1000"
+      
+      # 设置时区，例如 "Asia/Shanghai"
+      TZ: "Etc/UTC"
+
+    # 数据持久化配置
+    # 将容器内的路径绑定到懒猫系统的持久化存储目录 /lzcapp/var/ 下。
+    # 这样即使容器重启，数据也不会丢失。
+    binds:
+      # 配置文件
+      - /lzcapp/var/config:/config
+      # 下载目录
+      - /lzcapp/var/downloads:/downloads
+      # 监控目录，用于自动添加种子文件
+      - /lzcapp/var/watch:/watch
+      
+    # 容器健康检查
+    # 系统会通过访问 Web UI 来判断服务是否正常运行。
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
