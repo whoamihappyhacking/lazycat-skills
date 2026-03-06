@@ -81,6 +81,21 @@ lzc-cli app install release.lpk
 lzc-cli project devshell
 ```
 
+## 5. 镜像处理规范 (Image Handling)
+在打包和测试过程中，镜像的来源非常关键：
+
+**开发测试阶段 (Testing):**
+如果盒子拉取原生镜像（如 Docker Hub）缓慢或失败，必须将镜像推送到微服的测试仓库：
+1. 重新 tag 镜像：`docker tag <原镜像> dev.<微服名>.heiyu.space/<镜像名>:<版本>`
+2. 推送镜像：`docker push dev.<微服名>.heiyu.space/<镜像名>:<版本>`
+3. 在 `lzc-manifest.yml` 中使用该测试镜像地址。
+
+**正式发布阶段 (Publishing):**
+在上架商店前，必须将镜像拷贝到官方托管仓库以保证稳定性：
+1. 执行：`lzc-cli appstore copy-image <公网镜像名>`
+2. 拷贝成功后，工具会返回一个 `registry.lazycat.cloud/...` 开头的地址。
+3. **必须**将 `lzc-manifest.yml` 中的镜像地址替换为这个官方返回的地址。
+
 ## 平台特定的规则与护栏 (Guardrails)
 
 在帮助用户生成配置文件时，必须遵守以下懒猫微服平台的红线规则：
