@@ -1,6 +1,13 @@
 ---
 name: lazycat-auth-integration
 description: 用于处理懒猫微服(Lazycat MicroServer)应用接入官方认证体系（OIDC单点登录）、HTTP Header用户身份识别、API Auth Token 以及配置独立鉴权(public_path)的专业指南。
+license: MIT
+compatibility: 适用于 Claude Code 及其他支持 Agent Skills 标准的 AI 编程助手。
+metadata:
+  author: lazycatapps
+  version: "1.0"
+  category: security
+  keywords: lazycat, oidc, sso, auth, authentication, api-token, public-path
 ---
 
 # 懒猫微服认证体系接入指南
