@@ -1,6 +1,13 @@
 ---
 name: lazycat-lpk-builder
 description: 用于将现有应用或代码打包为懒猫微服(Lazycat MicroServer) lpk 应用格式的专业指南。当用户需要将 docker 镜像、docker-compose 转换或从零打包懒猫微服应用时触发。
+license: MIT
+compatibility: 适用于 Claude Code 及其他支持 Agent Skills 标准的 AI 编程助手。
+metadata:
+  author: lazycatapps
+  version: "1.0"
+  category: packaging
+  keywords: lazycat, lpk, docker, microserver, packaging, lzc-build
 ---
 
 # 懒猫微服 LPK 应用打包与移植指南

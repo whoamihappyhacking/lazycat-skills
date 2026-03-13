@@ -1,6 +1,13 @@
 ---
 name: lazycat-developer-expert
 description: 懒猫微服(Lazycat MicroServer)应用开发的终极总控指南。当用户提出任何与懒猫微服应用开发、打包(lpk)、路由配置、部署参数、认证体系(OIDC)或应用上架相关的需求时触发。
+license: MIT
+compatibility: 适用于 Claude Code 及其他支持 Agent Skills 标准的 AI 编程助手。
+metadata:
+  author: lazycatapps
+  version: "1.0"
+  category: development
+  keywords: lazycat, microserver, lpk, development, expert, manifest, routing, oidc
 ---
 
 # 懒猫微服应用开发总控指南

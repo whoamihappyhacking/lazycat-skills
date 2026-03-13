@@ -4,7 +4,11 @@
 
 ## 1. 项目定位
 
-这是一个面向懒猫微服 (LazyCat MicroServer) 平台的 **AI 技能包仓库**，通过 `npx skills add whoamihappyhacking/lazycat-skills` 安装。技能包的消费者是 **AI 智能体**，而非终端用户。
+这是一个面向懒猫微服 (LazyCat MicroServer) 平台的 **AI 技能包仓库**，遵循 [Agent Skills 开放标准](https://agentskills.io)。支持两种安装方式：
+- **插件市场（推荐）**：`/plugin marketplace add whoamihappyhacking/lazycat-skills`
+- **npx tools（兼容旧版）**：`npx skills add whoamihappyhacking/lazycat-skills`
+
+技能包的消费者是 **AI 智能体**，而非终端用户。
 
 ## 2. 项目结构约束
 
@@ -12,12 +16,14 @@
 lazycat-skills/
 ├── AGENTS.md              # 本文件，AI 行为约束（不要删除或弱化）
 ├── README.md              # 对外说明，面向人类开发者
+├── Makefile               # 本地安装 / 卸载 / 打包命令
 ├── .gitignore
 ├── skills/                # 核心技能目录
+│   ├── README.md          # 技能目录文档，面向贡献者
 │   ├── <技能名>/
-│   │   ├── SKILL.md       # 技能主文件（必须包含 YAML 表头）
+│   │   ├── SKILL.md       # 技能主文件（必须包含完整 YAML 表头）
 │   │   └── references/    # 参考文档（按需懒加载）
-│   └── <技能名>.skill     # 技能索引文件（自动生成，勿手动编辑）
+│   └── <技能名>.skill     # npx skills 打包产物（make build-skills 生成，勿手动编辑）
 └── .agents/               # 第三方安装的技能（已 gitignore，不提交）
 ```
 
@@ -29,10 +35,20 @@ lazycat-skills/
 ## 3. 技能文件编写规范
 
 ### SKILL.md 表头格式（必须）
+
+所有字段均为必填，以符合 Agent Skills 开放标准和插件市场的发现机制：
+
 ```yaml
 ---
 name: 技能名称
-description: 一句话描述（用于触发匹配，务必精准）
+description: 一句话描述（用于触发匹配，务必精准，含关键词）
+license: MIT
+compatibility: 适用于 Claude Code 及其他支持 Agent Skills 标准的 AI 编程助手。
+metadata:
+  author: lazycatapps
+  version: "1.0"
+  category: 分类（如 packaging / networking / security / deployment / development）
+  keywords: keyword1, keyword2, keyword3
 ---
 ```
 
@@ -80,6 +96,10 @@ description: 一句话描述（用于触发匹配，务必精准）
 1. 检查是否有真实设备名或敏感信息泄露
 2. 检查修改的内容是否需要同步到其他技能的副本
 3. 确保 `README.md` 中的技能列表与 `skills/` 目录一致
+4. **新增技能时**，必须同步更新以下两处，否则对应安装方式会失效：
+   - `.claude-plugin/marketplace.json` — 在 `plugins[0].skills` 数组中追加新技能路径（影响 `/plugin marketplace` 安装）
+   - `README.md` 技能列表表格 — 追加新技能的说明行
+5. 新增或修改技能后，执行 `make build-skills` 重新打包 `.skill` 文件并一并提交
 
 ## 6. 不要做的事情（禁止行为）
 

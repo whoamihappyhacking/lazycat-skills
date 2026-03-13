@@ -1,6 +1,13 @@
 ---
 name: lazycat-advanced-routing
 description: 处理懒猫微服(Lazycat MicroServer)应用的高级路由、多域名配置、TCP/UDP四层转发(ingress)、跨域处理以及使用 app-proxy 进行复杂代理规则配置的专业指南。
+license: MIT
+compatibility: 适用于 Claude Code 及其他支持 Agent Skills 标准的 AI 编程助手。
+metadata:
+  author: lazycatapps
+  version: "1.0"
+  category: networking
+  keywords: lazycat, routing, proxy, ingress, tcp, udp, nginx, upstreams, app-proxy
 ---
 
 # 懒猫微服高级路由与网络配置指南

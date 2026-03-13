@@ -1,0 +1,25 @@
+{
+  "name": "lazycat-skills",
+  "owner": {
+    "name": "whoamihappyhacking"
+  },
+  "metadata": {
+    "description": "懒猫微服 (LazyCat MicroServer) AI 技能包"
+  },
+  "plugins": [
+    {
+      "name": "lazycat-skills",
+      "description": "懒猫微服应用开发技能集合，涵盖打包、路由、部署、认证等场景",
+      "version": "1.0.0",
+      "strict": false,
+      "source": "./",
+      "skills": [
+        "./skills/lazycat-developer-expert",
+        "./skills/lazycat-lpk-builder",
+        "./skills/lazycat-dynamic-deploy",
+        "./skills/lazycat-advanced-routing",
+        "./skills/lazycat-auth-integration"
+      ]
+    }
+  ]
+}
