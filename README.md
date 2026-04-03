@@ -1,10 +1,16 @@
 # 🐱 Lazycat Skills (懒猫微服 AI 技能包)
 
 这是一套专为 **懒猫微服 (LazyCat MicroServer)** 平台开发者打造的 AI 智能体技能包 (Agent Skills)。
-通过安装本技能包，你可以让你的 AI 助手（如 Cursor、Windsurf、Cline等）瞬间变成懒猫平台的生态开发专家，帮你自动编写 `lzc-manifest.yml`、打包 LPK、处理路由以及进行微服认证开发。
+
+> [!IMPORTANT]
+> **分支与版本说明：**
+> - **`main` / `v2` 分支 (当前)**: 支持最新的 **LPK V2 (v1.5.0+)** 规范（元数据与运行结构分离，支持 `package.yml` 和 `permissions` 声明）。
+> - **`v1` 分支**: 包含旧版的 LPK V1 规范。
+
+通过安装本技能包，你可以让你的 AI 助手（如 Cursor、Windsurf、Cline等）瞬间变成懒猫平台的生态开发专家，帮你自动编写 `package.yml`、`lzc-manifest.yml`、打包 LPK、处理高级路由以及进行微服认证开发。
 
 ## 📦 技能列表 (Available Skills)
-
+... (rest of the list)
 目前包含以下核心技能：
 - `lazycat-developer-expert`: 懒猫微服全能开发者专家。
 - `lazycat-lpk-builder`: 专精将 Docker/源码转化为 `.lpk` 懒猫微服应用的打包专家。
