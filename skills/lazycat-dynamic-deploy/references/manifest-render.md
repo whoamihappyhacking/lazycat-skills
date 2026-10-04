@@ -25,7 +25,7 @@ manifest.yml 的渲染流程为
 ## 内置模板函数
 
 1. [spring](https://masterminds.github.io/sprig/) 支持的函数。( env 相关除外)
-2.  `stable_secrt "seed"` 模板函数，用来产生稳定的密码。此函数需要传递一个任意字符串。
+2.  `stable_secret "seed"` 模板函数，用来产生稳定的密码。此函数需要传递一个任意字符串。
     1. 同样的 seed，不同应用的结果保证不相同
     1. 同样的 seed，同样的应用不同的微服结果保证不相同
     2. 同样的 seed，相同的应用相同的微服(未重新恢复出厂设置)保证多次调用结果相同

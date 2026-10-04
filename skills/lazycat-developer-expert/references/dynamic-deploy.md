@@ -34,7 +34,7 @@ services:
   app:
     environment:
       - ADMIN_PWD={{.U.admin_password}}
-      - BOX_DOMAIN={{.S.BOX_DOMAIN}}
+      - BOX_DOMAIN={{.S.BoxDomain}}
 ```
 
 ## 三、 脚本注入 (Injects) 增强
@@ -47,9 +47,9 @@ LPK V2 支持更丰富的脚本注入阶段：
 
 ### 常用 Context (`ctx`) 能力
 - `ctx.headers`: 读写 HTTP 头。
-- `ctx.body`: 读写 Body (支持 `getJSON`, `setJSON`)。
+- `ctx.body`: 读写 Body (读取用 `getText` / `getJSON`，写入用 **`set`**——注意没有 `setJSON`)。
 - `ctx.proxy`: 动态改变反代目标。
-- `ctx.persist`: 跨请求持久化用户数据。
+- `ctx.persist`: 跨请求持久化用户数据（按 `SAFE_UID` 隔离）。
 
 示例 (CORS 适配):
 ```yaml

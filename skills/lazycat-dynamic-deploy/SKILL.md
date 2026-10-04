@@ -45,28 +45,31 @@ services:
 ## 2. 网页脚本注入 (`application.injects`) (v1.5.0+)
 适用于在不修改第三方 Docker 镜像前端代码的情况下，向特定网页强行注入 JS 脚本（比如用来自动填充难以修改的默认密码）。
 
-**核心逻辑：** 只有满足 `include`（白名单）且不命中 `exclude`（黑名单）的 HTML 页面才会被注入。
+**核心逻辑：** 满足 `when`（白名单，OR）且不命中 `unless`（黑名单，OR）的页面才会被注入。
+单条规则仅支持**后缀 `*` 作为前缀匹配**，无 `*` 时为精确匹配；`#hash` 规则**仅 browser 阶段**生效。
 
 **示例：实现第三方系统的自动登录**
 ```yaml
 application:
   injects:
     - id: auto-login
-      mode: exact # 支持 exact(精确) 或 prefix(前缀)
-      include:
-        - "/login"      # 当访问 /login 时注入
-        - "/#signin"    # 也能匹配 hash 路由
-      scripts:
+      when:
+        - "/login"      # 精确匹配 /login
+        - "/#signin"    # 匹配 hash 路由（仅 browser 阶段生效）
+      do:
         # 使用懒猫内置的表单填充脚本
         - src: builtin://simple-inject-password
           params:
             user: "admin"
-            password: "{{ stable_secret "app_admin_pass" }}"
+            password: '{{ stable_secret "app_admin_pass" }}'   # 单引号包裹，避免内层双引号破坏 YAML
             autoSubmit: true
 ```
 
 **自定义注入脚本:**
-如果你想注入自己写的脚本，可以将 JS 文件放在打包目录中，通过 `file:///lzcapp/pkg/content/myscript.js` 引用。在脚本内部，可以通过 `__LZC_INJECT_PARAMS__` 获取传入的 `params` 参数。
+如果你想注入自己写的脚本，可以将 JS 文件放在打包目录中，通过 `file:///lzcapp/pkg/content/myscript.js` 引用。在脚本内部，可以通过 `ctx.params` 获取传入的 `params` 参数。
+
+**注意：** 不存在 `include` / `exclude` / `mode` / `scripts` 字段，应使用 `when` / `unless` / `*` 通配 / `do`。字段定义以官方为准：
+<https://gitee.com/lazycatcloud/lzc-developer-doc/raw/master/docs/spec/manifest.md>（详见 `references/injects.md`）。
 
 ## 平台兼容性说明
 如果需要查看详细的内置模板函数列表、系统参数列表（`SysParams`）或了解脚本注入的 `builtin://simple-inject-password` 的详细参数配置（如修改选择器），请主动读取本技能包 `references/` 目录下的相关 Markdown 文档。

@@ -18,7 +18,7 @@
 | `contentdir` | `string` | 静态内容目录 (挂载至 `/lzcapp/pkg/content`)。 |
 | `pkgout` | `string` | LPK 输出目录。 |
 | `icon` | `string` | 图标路径 (PNG, 1:1, <200KB)。 |
-| `pkg_id` | `string` | (可选) 构建阶段覆盖 `package.yml.package`。 |
+| `package_override` | `map[string]any` | (可选) 按顶层字段整体覆盖最终 `package.yml`，不做递归 merge；顶层写空值表示清空对应字段。 |
 | `envs` | `[]string` | 构建期变量 (`KEY=VALUE`)，用于 `#@build` 宏。 |
 | `images` | `map` | 容器镜像构建配置 (`embed:<alias>`)。 |
 
@@ -39,7 +39,10 @@ application:
   injects:
     - id: dev-proxy
       on: request
-      do: "ctx.proxy.to('http://127.0.0.1:3000')"
+      when: ["/*"]
+      do:
+        - src: |
+            ctx.proxy.to("http://127.0.0.1:3000", { use_target_host: true });
 #@build else
 application:
   routes: ["/=file:///lzcapp/pkg/content/dist"]
@@ -49,7 +52,8 @@ application:
 ## 四、 开发态覆盖示例 (`lzc-build.dev.yml`)
 
 ```yaml
-pkg_id: cloud.lazycat.app.demo.dev
+package_override:
+  package: cloud.lazycat.app.demo.dev
 contentdir:   # 显式覆盖为空，不打包 content
 envs:
   - DEV_MODE=1

@@ -210,4 +210,4 @@ application:
 
 多个算力舱时，通过域名格式访问：`f-{算力舱序列号}-{服务名称}-ai.{微服名称}.heiyu.space`
 
-示例：`https://f-1420225016421-dozzle-ai.your-box-name.heiyu.space`
+示例：`https://f-{算力舱序列号}-dozzle-ai.{微服名称}.heiyu.space`

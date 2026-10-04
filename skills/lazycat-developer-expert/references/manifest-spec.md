@@ -36,9 +36,11 @@
 ### 3.3 脚本注入 (Injects)
 `injects` 允许在不修改源码的情况下注入逻辑。
 
-- **阶段 (`on`)**: `browser` (默认), `request` (转发前), `response` (响应后)。
-- **匹配**: `when` (命中条件), `unless` (排除条件), `prefix_domain` (域名前缀)。
+- **阶段 (`on`)**: `browser` (默认), `request` (转发前), `response` (响应后)。`#hash` 规则仅 `browser` 阶段生效。
+- **匹配**: `when` (命中条件，OR), `unless` (排除条件，OR), `prefix_domain` (域名前缀)。单条规则**仅支持后缀 `*` 作为前缀匹配**，无 `*` 时为精确匹配。
+- **鉴权门控**: `auth_required` (默认 `true`)，请求无合法 `SAFE_UID` 时跳过该 inject。
 - **执行环境**: `request/response` 在 lzcinit 沙盒中执行，支持 `ctx.headers`, `ctx.body`, `ctx.proxy` 等。
+- **注意**: 不存在 `include` / `exclude` / `mode` / `scripts` 字段。
 
 示例：
 ```yaml
@@ -56,7 +58,7 @@ injects:
 | 字段名 | 类型 | 描述 |
 | ---- | ---- | ---- |
 | `location` | `string` | 匹配路径。 |
-| `backend` | `string` | 上游地址 (`http://`, `file://`, `exec://`)。 |
+| `backend` | `string` | 上游地址，仅支持 `http://`、`https://`、`file://` 三种协议。**`exec://` 不属于 upstreams**，需要自启动程序时请用 `backend_launch_command`。 |
 | `disable_trim_location` | `bool` | **新特性**：为 true 时，转发到后端保留路径前缀。 |
 | `domain_prefix` | `string` | **新特性**：基于域名前缀的分流。 |
 | `use_backend_host` | `bool` | 是否使用 backend 里的 host 作为请求头。 |
