@@ -14,13 +14,27 @@ description: 懒猫微服(Lazycat MicroServer)应用开发的终极总控指南�
 3. **`lzc-build.yml`**：定义 release 版本的构建逻辑（必选）。
 4. **`lzc-build.dev.yml`**：定义开发态（Dev Mode）的覆盖配置（可选）。
 
+## ⚠️ 动手之前（强制，不可跳过）
+
+懒猫官方规范会**不定期更新**，本技能包 `references/` 下的规范是**某时刻的快照、会过期**。
+
+> **任何一次打包/构建动作（`lzc-cli project build` / `deploy` / `release`）之前，必须先完成 `references/spec-sync.md` 的校准流程：**
+>
+> 1. **拉取**官方最新规范原文（Gitee raw markdown 优先，文档站兜底）
+> 2. **比对**本地快照，**冲突时一律以官方为准**
+> 3. **声明**本次校准来源与发现的差异（格式见 spec-sync.md §5）
+>
+> 不允许凭本地 `references/` 的记忆直接产出 `package.yml` / `lzc-manifest.yml` / `lzc-build.yml`。
+
+**行动指令：** 现在读取并执行 `references/spec-sync.md`。
+
 ## 需求路由与技能分发 (Progressive Disclosure)
 
 当用户提出需求时，请严格根据以下分类，**使用你自带的文件读取工具（或 `cat` 命令）去读取对应的详细参考文档**。不要试图凭记忆回答复杂的配置问题。
 
 ### 1. 基础打包与 Docker 移植 (The Basics)
 **适用场景：** 用户想把一个普通的 Docker 镜像或 `docker-compose.yml` 跑在懒猫上，需要编写基础的 `package.yml`、`lzc-build.yml` 和 `lzc-manifest.yml`。
-**行动指令：** 请读取并遵循 `references/lpk-builder.md` 中的规范。
+**行动指令：** 请读取并遵循 `references/lpk-builder.md` 中的规范。**其中第 0 步（规范校准）为强制步骤，必须先执行 `references/spec-sync.md`。**
 *如涉及应用元数据或权限声明，请查阅 `references/package-spec.md`；如涉及清单配置细节，请查阅 `references/manifest-spec.md`。*
 *如果遇到挂载权限、文件读写、健康检查失败等常见疑难杂症，请务必读取 `references/troubleshooting.md`。*
 
@@ -46,4 +60,5 @@ description: 懒猫微服(Lazycat MicroServer)应用开发的终极总控指南�
 
 ---
 **给 AI 引擎的强制约束：**
-你必须按需（Lazy-load）读取上述子文档。比如用户问“如何让用户在安装时输入密码”，你只需读取 `references/dynamic-deploy.md`，不要去读取路由或 SDK 的文档，以此来保护上下文窗口并提高回答的准确性。
+1. **打包类需求必须先校准**：任何涉及 `lpk` 打包/构建的需求，第一步永远是执行 `references/spec-sync.md`，拉取官方最新规范后再动手。本地 `references/` 只是快照，冲突时以官方为准。
+2. 你必须按需（Lazy-load）读取上述子文档。比如用户问“如何让用户在安装时输入密码”，你只需读取 `references/dynamic-deploy.md`，不要去读取路由的文档，以此来保护上下文窗口并提高回答的准确性。

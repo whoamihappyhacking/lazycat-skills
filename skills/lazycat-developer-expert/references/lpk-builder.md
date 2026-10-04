@@ -18,6 +18,10 @@ LPK V2 将元数据与运行配置分离，推荐的项目结构如下：
 
 ## 核心流程
 
+### 0. 规范校准（强制，不可跳过）
+懒猫官方规范不定期更新，本文件与同级 `references/` 只是**快照**。
+**动手写任何配置之前**，先执行 `references/spec-sync.md`：拉取官方最新规范原文 → 与本地比对 → **冲突时以官方为准** → 向用户声明差异。不允许凭记忆直接产出配置。
+
 ### 1. 编写元数据与权限 (`package.yml`)
 自 LPK V2 起，所有静态字段必须在此声明。**必须**显式声明权限。
 
@@ -61,7 +65,8 @@ icon: ./icon.png
 支持覆盖配置，例如切换到本地开发服务器：
 
 ```yaml
-pkg_id: cloud.lazycat.app.demo.dev
+package_override:
+  package: cloud.lazycat.app.demo.dev
 envs:
   - DEV_MODE=1
 ```
@@ -74,7 +79,9 @@ application:
     - id: dev-proxy
       on: request
       when: ["/*"]
-      do: "ctx.proxy.to('http://127.0.0.1:3000')"
+      do:
+        - src: |
+            ctx.proxy.to("http://127.0.0.1:3000", { use_target_host: true });
 #@build else
 application:
   routes:

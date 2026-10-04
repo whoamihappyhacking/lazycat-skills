@@ -13,11 +13,13 @@ lazycat-skills/
 ├── AGENTS.md              # 本文件，AI 行为约束（不要删除或弱化）
 ├── README.md              # 对外说明，面向人类开发者
 ├── .gitignore
+├── scripts/
+│   └── build-skills.mjs   # 由 skills/<技能名>/ 生成 <技能名>.skill 打包件
 ├── skills/                # 核心技能目录
 │   ├── <技能名>/
 │   │   ├── SKILL.md       # 技能主文件（必须包含 YAML 表头）
 │   │   └── references/    # 参考文档（按需懒加载）
-│   └── <技能名>.skill     # 技能索引文件（自动生成，勿手动编辑）
+│   └── <技能名>.skill     # ZIP 打包件（由 scripts 生成，勿手动编辑）
 └── .agents/               # 第三方安装的技能（已 gitignore，不提交）
 ```
 
@@ -44,7 +46,25 @@ description: 一句话描述（用于触发匹配，务必精准）
 
 ### 修改技能时的同步规则
 - `lazycat-lpk-builder/SKILL.md` 和 `lazycat-developer-expert/references/lpk-builder.md` 内容高度重叠，**修改其一时必须同步修改另一个**
-- `references/` 下的文件如果在多个技能中共享（如 `build-spec.md`、`manifest-spec.md`、`store-publish.md`），修改时必须同步所有副本
+- `references/` 下的文件如果在多个技能中共享（如 `build-spec.md`、`manifest-spec.md`、`store-publish.md`、`spec-sync.md`），修改时必须同步所有副本
+
+### 规范内容必须以上游为准（重要）
+- 官方开发者文档**不定期更新**，本仓库 `references/` 中的规范只是**快照、会过期**。
+- 因此不要求在本仓库"追平"官方规范，而要求**每次打包前现场校准**：`references/spec-sync.md` 定义了校准流程与官方来源链接（<https://gitee.com/lazycatcloud/lzc-developer-doc> 优先，<https://developer.lazycat.cloud/> 兜底）。
+- 编写或修改任何规范类文档时：
+  1. **先拉取官方原文核对**，不要凭记忆或凭本仓库旧文推断字段名；
+  2. 本仓库内容与官方冲突时，**一律以官方为准**；
+  3. 已知会漂移的字段名/版本门槛，优先写成"见官方链接"而非复制一份可能过期的副本。
+
+### 打包件生成（必须）
+`skills/<技能名>.skill` 是 ZIP 打包件，**不要手动编辑**。修改任何技能内容后必须重新生成：
+
+```bash
+node scripts/build-skills.mjs          # 生成 / 更新全部
+node scripts/build-skills.mjs --check  # 校验，不一致则非零退出
+```
+
+提交前必须运行 `--check` 并通过。历史上曾因未重新生成，导致 V1 时代的旧文档与已删除的 SDK 内容继续随打包件分发。
 
 ## 4. 敏感信息约束（红线）
 
@@ -95,4 +115,6 @@ description: 一句话描述（用于触发匹配，务必精准）
 1. 当需要 `<微服名>` 时，主动执行 `lzc-cli box default` 获取，不要询问用户
 2. 当需要查看已部署应用状态时，使用 `lzc-cli docker` 前缀命令
 3. 修改技能内容后，使用 changelog-maintenance 技能更新 CHANGELOG.md
-4. 每次提交推送前，确认远程地址为 `git@github.com:whoamihappyhacking/lazycat-skills.git`
+4. **修改任何技能内容后，必须运行 `node scripts/build-skills.mjs` 重新生成打包件，并确认 `--check` 通过**
+5. **任何打包/构建类需求的第一个动作是执行 `references/spec-sync.md` 的规范校准**，不要用本地快照直接生成配置
+6. 每次提交推送前，确认远程地址为 `git@github.com:whoamihappyhacking/lazycat-skills.git`

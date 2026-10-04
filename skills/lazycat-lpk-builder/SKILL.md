@@ -9,9 +9,26 @@ description: 用于将现有应用或代码打包为懒猫微服(Lazycat MicroSe
 
 **当前推荐使用 LPK V2 (v1.5.0+) 规范**，该规范实现了元数据与运行结构的分离。
 
+## ⚠️ 动手之前（强制，不可跳过）
+
+懒猫官方规范会**不定期更新**，本技能包 `references/` 下的规范是**某时刻的快照、会过期**。
+
+> **任何一次打包/构建动作（`lzc-cli project build` / `deploy` / `release`）之前，必须先完成 `references/spec-sync.md` 的校准流程：**
+>
+> 1. **拉取**官方最新规范原文（Gitee raw markdown 优先，文档站兜底）
+> 2. **比对**本地快照，**冲突时一律以官方为准**
+> 3. **声明**本次校准来源与发现的差异（格式见 spec-sync.md §5）
+>
+> 不允许凭本地 `references/` 的记忆直接产出 `package.yml` / `lzc-manifest.yml` / `lzc-build.yml`。
+
+**行动指令：** 现在读取并执行 `references/spec-sync.md`。
+
 ## 核心流程 (Core Workflow)
 
 打包和移植懒猫微服应用主要涉及编写以下核心配置文件：
+
+### 0. 规范校准（强制）
+按上述说明执行 `references/spec-sync.md`，拿到当日官方规范后再继续。若发现本地快照与官方不一致，按 spec-sync.md §4 的冲突裁决规则处理并向用户声明。
 
 ### 1. 需求分析与准备
 - 确认应用类型（源码构建或 Docker 镜像移植）。
