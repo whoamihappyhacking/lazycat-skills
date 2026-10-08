@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install explicit Python checker dependency
+        run: python3 -m pip install --disable-pip-version-check -r scripts/requirements-check.txt
+
+      - name: Run isolated offline tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+
+      - name: Check repository invariants (no npm dependencies)
+        run: python3 scripts/check-repo.py
+
+      - name: Verify deterministic skill distributions
+        run: node scripts/build-skills.mjs --check

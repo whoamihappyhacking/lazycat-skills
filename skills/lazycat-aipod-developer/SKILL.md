@@ -1,27 +1,25 @@
 ---
 name: lazycat-aipod-developer
-description: 懒猫AI算力舱(AI Pod)应用开发与打包规范。当用户需要构建一个部署到算力舱的AI应用、编写ai-pod-service的docker-compose.yml、配置Traefik路由规则、打包AI浏览器插件、或发布AI应用到商店时触发。
+description: 懒猫 AI 算力舱应用开发与打包：AIApp resource、AGX Orin/Thor 型号 compose、Traefik AI host、浏览器插件、启动 gate、数据路径及旧包迁移。
 ---
 
-# 懒猫 AI 算力舱应用构建指南
+# AI Pod 应用：资源与设备兼容
 
-你现在是懒猫微服 AI 算力舱（AI Pod）的应用开发专家。本技能聚焦于 **如何构建一个可部署到算力舱的 AI 应用**。
+## 先校准两个来源
 
-## 核心概念
+写/改配置或 build/deploy/release 前，读取并执行 `references/spec-sync.md`，确认微服、CLI、算力舱/消费端版本。**还必须读取 AI Pod 独立官方专题**：
 
-- **AI 应用** = 微服应用 + 算力舱 AI 服务（和/或 AI 浏览器插件）
-- 安装到微服后，会自动将 AI 服务部署到算力舱
-- 算力舱基于 NVIDIA Jetson，Docker 默认使用 `nvidia-runtime`，**容器内直接可用 GPU，无需显式配置**
-- 服务网关使用 Traefik，通过 Host 规则转发，**域名必须以 `-ai` 结尾**
+- <https://developer.lazycat.cloud/aipod/package/spec.html>
+- 必要时按章节检索 <https://developer.lazycat.cloud/aipod/llms-full.txt>，不要一次加载整站。
 
-## 行动指令
+通用 LPK 源仓库不覆盖所有 AI Pod 能力。当前专题的资源导入位置/投影路径与通用 V2 规范存在差异，先按 `references/aipod-app-spec.md` 识别边界；不能猜测转换后声称可部署。
 
-当用户需要构建 AI 算力舱应用时，请读取 `references/aipod-app-spec.md` 获取完整的打包规范、docker-compose 编写要求、Traefik 路由配置、环境变量说明、浏览器插件打包、进度提示集成、应用发布等详细内容。
+## 行动流程
 
----
-**给 AI 引擎的强制约束：**
-1. 算力舱 Docker 默认使用 `nvidia-runtime`，不要在 docker-compose 中添加 `gpus` 或 `runtime: nvidia` 配置
-2. Traefik 的 Host 域名**必须**以 `-ai` 结尾，否则无法转发
-3. 服务必须加入 `traefik-shared-network` 网络才能被 Traefik 接管
-4. 使用 `LZC_AGENT_DATA_DIR` 做数据持久化，`LZC_AGENT_CACHE_DIR` 做缓存，`LZC_SERVICE_ID` 做路由命名
-5. 当需要获取微服名称时，执行 `lzc-cli box default`，不要询问用户
+1. 读取 `references/aipod-app-spec.md`，根据用户设备选择 agxorin/thor compose，不假定所有设备只是一种 Jetson。
+2. 新配置使用 resource 中 config/aipod.yml（无外层 aipod）、型号目录、extensions 与平台 startup gate；旧 ai-pod-service/browser-extensions 仅作为兼容 fallback。
+3. 核实各设备镜像架构/GPU软件栈，AI host 必须一致且以 -ai 结尾，加入 traefik-shared-network；长初始化服务配真实就绪探针。
+4. 数据用 LZC_AGENT_DATA_DIR，缓存用 LZC_AGENT_CACHE_DIR，Traefik 标识用 LZC_SERVICE_ID；平台默认 NVIDIA runtime，无需机械添加 gpus/runtime。
+5. 若专题与通用 schema 不一致，核实目标工具链与资源消费端后再生成完整包；只做构建/静态校验时，不宣称真实部署、模型推理或所有型号兼容。
+
+安装、发布、设备变更需授权；需微服名称主动执行 `lzc-cli box default`。不把文档中的设备序列号或微服名复制进产物。

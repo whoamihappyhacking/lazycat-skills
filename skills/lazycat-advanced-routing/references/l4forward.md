@@ -1,62 +1,141 @@
-# TCP/UDP 4层转发 {#tcp-udp-ingress}
+# TCP/UDP 四层转发（`application.ingress`）
 
-::: warning 正常http流量，请使用`application.routes`功能
+> 校准基线：懒猫官方开发者文档仓库 `780d7206ce2298ee0a225e0221a993c4723d8e07`。生成配置前仍须先执行 `spec-sync.md`，以当前官方原文为准。
 
-ingress的TCP/UDP转发能是为了提供给微服客户端之外使用，比如命令行或第三方应用。
-如果只是为了转发容器的某个http端口，请使用lzcapp的[http路由功能](./advanced-route.md)。
+官方来源：
 
-:::
+- <https://developer.lazycat.cloud/advanced-l4forward.html>
+- <https://developer.lazycat.cloud/spec/manifest.html#ingressconfig-配置>
+- <https://developer.lazycat.cloud/advanced-secondary-domains.html>
 
+## 1. 只用于非平台 HTTP 入口
 
-如果您想提供一些 TCP/UDP 服务，可以在 `lzc-manifest.yml` 文件中的 `application` 字段下加一个 `ingress` 子字段
+数据库、SSH、自定义 TCP/UDP 协议等才使用 `application.ingress`。普通 Web 页面/API 应使用 `application.routes` 或 `application.upstreams`，才能获得平台 HTTP 入口的鉴权、唤醒与证书处理。
+
+## 2. 字段语义
+
+| 字段 | 说明 |
+| --- | --- |
+| `protocol` | `tcp` 或 `udp` |
+| `description` | 给管理员看的用途说明 |
+| `service` | 目标 service；省略时为 `app` |
+| `port` | 目标 service 端口；省略时沿用实际入站端口 |
+| `publish_port` | 入站端口或端口范围；省略时等于 `port` |
+| `send_port_info` | 仅 TCP；先写入 2 字节 little-endian `uint16` 原始入站端口 |
+| `yes_i_want_80_443` | 明确确认接管 80/443 的高风险开关 |
+
+匹配过程是：按应用默认域名对应的虚拟外部 IP 找到应用，再按 `protocol` 和原始入站端口匹配 ingress，最后转到 `service:port`。
+
+## 3. LPK V2 拆分示例
+
+下面是用于隔离测试的最小 L4 示例。它把外部 TCP 18080 直通到 whoami 的 80 端口；这条流量**没有平台 HTTP 鉴权**，生产 Web 服务不要照此绕开 `routes`。
+
+### `package.yml`
+
+```yml
+package: cloud.lazycat.app.l4-demo
+version: 0.0.1
+name: L4 Demo
+description: TCP 四层转发测试
+```
+
+### `lzc-manifest.yml`
+
+```yml
+application:
+  image: registry.lazycat.cloud/traefik/whoami
+  subdomain: l4-demo
+  ingress:
+    - protocol: tcp
+      description: 隔离环境中的 TCP 直通测试
+      publish_port: "18080"
+      port: 80
+```
+
+镜像引用来自当前官方 HTTP 路由教程；使用前仍须确认 registry 可用性。验证地址应使用系统实际分配的 `LAZYCAT_APP_DOMAIN:18080`。
+
+## 4. 端口范围：保留官方已示例的连字符
+
+当前官方两处原文存在格式差异：
+
+- 四层转发能力文档的可执行示例及字段说明使用 `20000-30000`。
+- manifest 字段表将范围写作 `1000~50000`。
+
+在官方统一口径前，本技能遵从能力文档已经给出的示例，使用连字符 `-`，并建议把范围写成字符串：
+
+```yml
+application:
+  ingress:
+    - protocol: udp
+      description: 入站端口原样映射到 app 的相同端口
+      service: app
+      publish_port: "20000-30000"
+
+    - protocol: tcp
+      description: 16000 到 18000 都转发到 worker 的 6666
+      service: worker
+      port: 6666
+      publish_port: "16000-18000"
+```
+
+不要因 manifest 表格里出现 `~` 就批量“修正”官方能力文档的 `-` 示例；打包前通过 `spec-sync.md` 再核对当前官方与目标系统实际支持。
+
+## 5. `send_port_info` 会改变 TCP 字节流
+
+多个入站端口都转到一个固定目标端口时，目标默认只知道固定端口。若业务协议需要知道原始端口，可以开启：
 
 ```yml
 application:
   ingress:
     - protocol: tcp
-      port: 8080
-    - protocol: tcp
-      description: 数据库服务
-      port: 3306
-      service: mysql
-    - protocol: tcp
-      description: 2W-3W端口来源转发到对应端口
-      service: app
-      publish_port: 20000-30000
-    - protocol: tcp
-      description: 1.6W-1.8W端口来源都转发到6666端口
-      service: app
+      service: worker
       port: 6666
-      publish_port: 16000-18000
+      publish_port: "16000-18000"
+      send_port_info: true
 ```
 
-- `protocol`: 对外服务的协议， 有 `tcp` 和 `udp` 两种选择
-- `description`: 对此服务的描述，便于管理员了解基本情况
-- `port`: 目标服务的端口号，若不写则为实际入站端口号。（v1.3.8之前的版本不支持`port`为80或443）
-- `service`: 服务名称，用来定位具体的`service container`。默认值为`app`
-- `publish_port`: 入站端口号，默认值为`port`对应的端口号。支持`3306`以及`1000-50000`两种写法。
+目标服务接受连接后必须先读取 2 字节，并按 little-endian `uint16` 解析，再读取业务数据。现有 SSH、数据库或其他协议通常不认识这 2 字节；未经协议端适配不要开启。该字段对 UDP 无效。
 
-设置好以后， 就可以通过浏览器来进行访问啦, 比如您的应用域名为 `app-subdomain` (lzc-manifest.yml 文件的 subdomain 字段)， 设备名为 `devicename`, 您就可以通过访问 `app-subdomain.devicename.heiyu.space:3306` 来访问对外提供的 TCP 服务啦。
+## 6. 没有平台账户鉴权
 
-::: warning 安全提示
-当您使用TCP/UDP功能时，微服系统仅能提供底层虚拟网络的保护，从原理上无法提供鉴权流程。
-微服客户端上的其他进程可以不受限制的访问对应TCP/UDP端口。
-若用户使用端口转发工具进行转发则会进一步降低安全性，因此开发者在提供TCP/UDP功能时一定要妥善处理鉴权逻辑。
-:::
+L4 从原理上不能执行平台 HTTP 登录流程：
 
-::: warning 80/443
+- 微服客户端上的其他进程可以直接访问开放端口。
+- 用户若再使用端口转发工具，暴露面会进一步扩大。
+- `application.public_path`、HTTP Header 身份以及 `routes`/`upstreams` 规则都不保护这条链路。
 
-当您的应用直接接管443时(v1.3.8+支持)，流量是直接到达您容器内，因此系统无法做一些预处理，包括但不限于
+应用必须在自身协议中实现认证、授权、加密、限速与审计；不要把“只有微服网络能到”当成业务鉴权。
 
-- 账户鉴权
-- 自动唤醒应用
-- HTTPS证书配置
-- application.routes,application.upstreams等配置
+## 7. 80/443 是显式高风险例外
 
-几乎所有情况下您都不应该去使用443端口配置。
+接管 80/443 时，流量直接进入容器，平台无法执行：
 
-目前设想唯一合理的场景是：使用微服分配的EIP，全流量转发到另外一台主机/NAS上，并配置一个非微服域名。
+- 账户鉴权；
+- 自动唤醒应用；
+- HTTPS 证书配置；
+- `application.routes` 与 `application.upstreams`。
 
-如果您真的确定要自行处理80/443流量则需要在对应ingress条目里明确声明`yes_i_want_80_443:true`
+确有极特殊需求时，相关 ingress 条目必须写：
 
-:::
+```yml
+application:
+  ingress:
+    - protocol: tcp
+      port: 443
+      yes_i_want_80_443: true
+```
+
+这不是“开启 HTTPS”的快捷方式。应用需要自己处理 TLS、证书、鉴权和唤醒缺失；绝大多数应用不应接管 80/443。
+
+## 8. 域名前缀不参与 L4 分流
+
+所有 `<prefix>-<实际子域名>` 进入的流量都会忽略 TCP/UDP Ingress，只有应用默认域名对应的 L4 入口有效。不要设计“不同域名前缀映射不同数据库端口”；域名前缀分流是 HTTP upstream 能力。
+
+## 9. 验证清单
+
+1. 使用对应协议客户端验证 TCP/UDP，不要只用浏览器判断。
+2. 从 `LAZYCAT_APP_DOMAIN` 取得实际默认域名。
+3. 分别验证范围首尾端口与范围外端口。
+4. 若开启 `send_port_info`，抓取连接前两个字节确认小端端口值。
+5. 从未登录或不同客户端进程测试暴露面，确认应用自己的鉴权确实生效。
+6. 对 80/443 再次审查是否能改回平台 HTTP 路由。

@@ -1,0 +1,14 @@
+package: cloud.lazycat.app.demo
+version: "1.0.0"
+name: 示例静态站
+min_os_version: "1.5.0"
+locales:
+  zh-CN:
+    name: 示例静态站
+    description: LPK V2 静态内容示例
+  en-US:
+    name: Demo Static Site
+    description: An LPK V2 static content example
+permissions:
+  required: []
+  optional: []

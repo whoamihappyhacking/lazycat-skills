@@ -1,0 +1,5 @@
+usage: 这是用于验证配置文件边界的最小静态站，默认仍需平台登录。
+application:
+  subdomain: demo
+  routes:
+    - /=file:///lzcapp/pkg/content

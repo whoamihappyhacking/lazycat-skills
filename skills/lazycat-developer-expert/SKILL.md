@@ -1,49 +1,42 @@
 ---
 name: lazycat-developer-expert
-description: 懒猫微服(Lazycat MicroServer)应用开发的终极总控指南。当用户提出任何与懒猫微服应用开发、打包(lpk)、路由配置、部署参数、认证体系(OIDC)或应用上架相关的需求时触发。
+description: 懒猫微服应用开发的总控入口，用于 LPK V2 打包、权限与持久化、HTTP/L4 路由、部署参数与 inject、OIDC/用户委托、静态资源导入导出和商店上架。
 ---
 
-# 懒猫微服应用开发总控指南
+# 懒猫微服开发：按需加载总控
 
-你现在是懒猫微服（Lazycat MicroServer）的首席架构师和开发专家。这是一个**入口级（Master）**技能，你的主要职责是分析用户的开发需求，并指引自己去加载正确的垂直领域文档。
+## 必须先校准
 
-## 平台核心概念
-懒猫微服使用特有的 `lpk` 包格式来分发应用。**当前推荐使用 LPK V2 (v1.5.0+) 规范**，其核心配置文件体系如下：
-1. **`package.yml`**：定义应用元数据、版本、作者及权限声明（必选）。
-2. **`lzc-manifest.yml`**：定义应用运行结构、服务、路由及脚本注入（必选）。
-3. **`lzc-build.yml`**：定义 release 版本的构建逻辑（必选）。
-4. **`lzc-build.dev.yml`**：定义开发态（Dev Mode）的覆盖配置（可选）。
+凡写/改平台配置，或执行 build/deploy/release，先读取并执行 `references/spec-sync.md`。确认目标系统与 CLI 版本、获取官方原文、核对本地快照并报告差异；离线明确声明风险，不能把请求失败或错误页当“官方最新”。
 
-## 需求路由与技能分发 (Progressive Disclosure)
+LPK V2 至少 **lzcos 1.5.0 + lzc-cli 2.0.0**。package.yml 管静态元数据/权限/import_resources，manifest 管运行结构；build 管构建，dev 只留差异。新字段不等于旧设备支持。
 
-当用户提出需求时，请严格根据以下分类，**使用你自带的文件读取工具（或 `cat` 命令）去读取对应的详细参考文档**。不要试图凭记忆回答复杂的配置问题。
+## 需求路由
 
-### 1. 基础打包与 Docker 移植 (The Basics)
-**适用场景：** 用户想把一个普通的 Docker 镜像或 `docker-compose.yml` 跑在懒猫上，需要编写基础的 `package.yml`、`lzc-build.yml` 和 `lzc-manifest.yml`。
-**行动指令：** 请读取并遵循 `references/lpk-builder.md` 中的规范。
-*如涉及应用元数据或权限声明，请查阅 `references/package-spec.md`；如涉及清单配置细节，请查阅 `references/manifest-spec.md`。*
-*如果遇到挂载权限、文件读写、健康检查失败等常见疑难杂症，请务必读取 `references/troubleshooting.md`。*
+用文件读取工具按需读取同技能内文档，不依赖用户同时安装其他技能：
 
-### 2. 构建逻辑与开发模式 (Build & Dev Mode)
-**适用场景：** 需要配置构建脚本、内嵌镜像（Embed Image）、使用 `lzc-build.dev.yml` 进行开发态分流，或者使用 `#@build` 条件编译宏。
-**行动指令：** 请读取并遵循 `references/build-spec.md` 中的规范。
+| 需求 | 必读文档 |
+| --- | --- |
+| Docker/源码移植、打包验收 | `references/lpk-builder.md` |
+| 元数据、权限/版本门槛 | `references/package-spec.md` |
+| 服务、entries、run_as、VT、运行字段 | `references/manifest-spec.md` |
+| build/dev、embed 镜像、开发机代理 | `references/build-spec.md` |
+| HTTP/前缀域名/Host/四层转发 | `references/advanced-routing.md` |
+| 安装参数、Go template、三阶段 inject | `references/dynamic-deploy.md` |
+| OIDC、可信身份 Header、API Token、public_path | `references/auth-integration.md` |
+| 代表用户访问自身/其他应用 | `references/app-interconnect.md` |
+| Skill/MCP 等静态资源发现/导入导出 | `references/resource-export.md` |
+| 权限、初始化、探针、持久化问题 | `references/troubleshooting.md` |
+| 商店提交与八项审核 | `references/store-publish.md` |
 
-### 3. 高级路由与网络配置 (Networking & Routing)
-**适用场景：** 需要配置多域名（`secondary_domains`）、TCP/UDP 端口转发（`ingress`）、基于域名的分流（`upstreams`）、`disable_trim_location` 路径保留，或者使用 `app-proxy` 进行复杂的 Nginx 反向代理。
-**行动指令：** 请读取并遵循 `references/advanced-routing.md` 中的规范。
+## 强制边界
 
-### 4. 动态部署与脚本注入 (Dynamic & Injects)
-**适用场景：** 需要在安装应用时弹窗让用户填参数（`lzc-deploy-params.yml`），或者需要在第三方网页的前端强行注入 JS 脚本（支持 `browser`/`request`/`response` 三阶段）。
-**行动指令：** 请读取并遵循 `references/dynamic-deploy.md` 中的规范。
+- 不默认 root/privileged/公网放行；按最小权限、镜像入口与目标版本生成配置。
+- 内部数据、缓存、用户文件分开存放；改变实例模式或路径先设计数据迁移。
+- 自动前缀域名、upstream.domain_prefix、inject.prefix_domain、entry.prefix_domain 不得混为不存在的字段。
+- API Token 消费不等于请求不能转发到应用；Header 身份必须来自可信平台入口；用户委托票据是版本受限的专门能力。
+- #@build、Go template 和运行 JS 是不同阶段；原文、预处理结果、最终 YAML 分别校验。
+- buildscript 不调用 project build；安装、发布、提权、凭据变更须用户授权。
+- 应用状态使用 `lzc-cli docker`；需微服名时执行 `lzc-cli box default`。
 
-### 5. 账号认证与权限体系 (Auth & OIDC)
-**适用场景：** 应用需要接入单点登录（OIDC）、需要识别 `X-HC-User-ID` 等 HTTP 头、需要开放无需登录的公共 API（`public_path`），或者需要在脚本中生成并使用 `API Auth Token`。
-**行动指令：** 请读取并遵循 `references/auth-integration.md` 中的规范。
-
-### 6. 应用上架商店与发布 (Store Publishing)
-**适用场景：** 开发者已经完成应用的开发和测试，需要将应用上架到懒猫应用商店，或者需要了解商店审核规则、镜像推送到官方仓库的流程等。
-**行动指令：** 请读取并遵循 `references/store-publish.md` 中的规范。
-
----
-**给 AI 引擎的强制约束：**
-你必须按需（Lazy-load）读取上述子文档。比如用户问“如何让用户在安装时输入密码”，你只需读取 `references/dynamic-deploy.md`，不要去读取路由或 SDK 的文档，以此来保护上下文窗口并提高回答的准确性。
+只加载与需求相关的摘要/原文，输出校准记录、实际执行结果、未验证项，不把静态示例检查等同真实部署成功。

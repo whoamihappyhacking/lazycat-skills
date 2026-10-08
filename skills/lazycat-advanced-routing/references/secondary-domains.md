@@ -1,59 +1,118 @@
-一个应用使用多个域名
-===================
+# 域名前缀与多域名分流
 
-`lzc-manifest.yml:application.subdomain`是开发者期望使用的域名，但微服系统(v1.3.6+后)会进行一定调整
+> 校准基线：懒猫官方开发者文档仓库 `780d7206ce2298ee0a225e0221a993c4723d8e07`。生成配置前仍须先执行 `spec-sync.md`，以当前官方原文为准。
 
-1. 如果多个应用使用相同的`subdomain`字段，则后安装的会被添加域名小尾巴
-2. 多实例类型应用，同一个应用每个用户会分配独立的域名，因此非管理员看到的域名大概率会加上小尾巴
-3. 域名前缀概念:  `xxxx-subdomain`的域名和`subdomain`的效果是一致，即每个应用自动拥有任意多个域名。
-4. 最终实际分配到的`subdomain`只能通过环境变量`LAZYCAT_APP_DOMAIN`获取到。
-5. 所有前缀域名进入的流量都会忽略`TCP/UDP Ingress`配置。 (不影响默认应用域名进入的流量)
+官方来源：
 
+- <https://developer.lazycat.cloud/advanced-secondary-domains.html>
+- <https://developer.lazycat.cloud/advanced-route.html#upstreamconfig>
+- <https://developer.lazycat.cloud/spec/manifest.html#entries>
 
-v1.3.8已支持[基于域名的流量转发](./advanced-route#upstreamconfig)
+## 1. 当前机制：自动前缀域名
 
-由于`application.routes`不支持基于域名的转发，如果需要比较细致的调整路由规则，
-可以添加一条特殊route规则，`- /=http://nginx.$appid.lzcapp`。
-注意这里一定要用`$service.$appid.lzcapp`的形式，否则nginx无法收到完整的域名信息，[原因见](advanced-route.html#p2)
+`application.subdomain` 只是期望的默认子域名。系统可能因名称冲突或多实例部署为实际域名添加后缀；最终值从运行时环境变量 `LAZYCAT_APP_DOMAIN` 获取，不要永久保存，也不要假定它永远等于 manifest 中的值。
 
-比如，下面这个配置的效果是
-1. 应用列表里打开默认是`whoami.xx.heiyu.space`(假设实际分配到的`subdomain`是`whoami`)
-2. `nginx-whoami.xx.heiyu.space`流量会返回默认的nginx静态hello world
-3. `任意内容-whoami.xx.heiyu.space`与访问`whoami.xx.heiyu.space`效果相同
+应用自动拥有任意前缀域名：
 
+```text
+<实际子域名>.<微服根域>
+<prefix>-<实际子域名>.<微服根域>
+```
 
-```yaml
+例如实际子域名为 `demo` 时，`admin-demo.<微服根域>` 和 `api-demo.<微服根域>` 都会进入同一应用。
 
-package: org.snyh.debug.whoami
-name: whoami-lazycatmicroserver
+**不存在需要枚举附加域名的 `application.secondary_domains` 字段。** 遇到旧配置时删除该字段，改用下述前缀匹配能力。
 
+## 2. 用 `upstreams[].domain_prefix` 分流
+
+### `package.yml`
+
+```yml
+package: cloud.lazycat.app.prefix-routing-demo
+version: 0.0.1
+name: Prefix Routing Demo
+description: 域名前缀分流示例
+```
+
+### `lzc-manifest.yml`
+
+```yml
 application:
-  subdomain: whoami
-  routes:
-    - /=http://nginx.org.snyh.debug.whoami.lzcapp:80
+  subdomain: prefix-routing-demo
+  upstreams:
+    - location: /
+      domain_prefix: admin
+      backend: http://admin:80
+
+    - location: /
+      backend: http://main:80
 
 services:
-  nginx:
-    image: registry.lazycat.cloud/snyh1010/library/nginx:54809b2f36d0ff38
-    setup_script: |
-      cat <<'EOF' > /etc/nginx/conf.d/default.conf
-      server {  # whoami.xxx.heiyu.space以及其他任意域名前缀都转发到traefix/whoami
-         server_name _;
-         location / {
-            proxy_pass http://app1:80;
-            #目前setup_script机制还有点问题，这里不能直接写环境变量，如果有这个需求则
-            #只能使用binds的形式把文件放到pkg/content中binds进去
-         }
-      }
-      server {  # nginx开头的域名转发到nginx默认页，比如nginx3-whoami.xxx.heiyu.space, nginx-whoami.xxx.heiyu.space
-         server_name  ~^nginx.*-.*;
-         location / {
-            root   /usr/share/nginx/html;
-            index  index.html index.htm;
-         }
-      }
-
-      EOF
-  app1:
-    image: registry.lazycat.cloud/snyh1010/traefik/whoami:c899811bc4a1f63a
+  main:
+    image: registry.lazycat.cloud/traefik/whoami
+  admin:
+    image: registry.lazycat.cloud/traefik/whoami
 ```
+
+效果：
+
+- 默认域名进入 `main`。
+- `admin-<实际子域名>.<微服根域>` 进入 `admin`。
+- 不需要预先声明 `admin` 为第二域名。
+
+镜像引用来自当前官方 HTTP 路由教程；实际使用前仍须核验 registry 可用性。
+
+## 3. 启动器入口也可指定前缀
+
+`application.entries[].prefix_domain` 用于让某个启动器入口直接打开前缀域名：
+
+```yml
+application:
+  subdomain: prefix-routing-demo
+  entries:
+    - id: main
+      title: 主界面
+      path: /
+    - id: admin
+      title: 管理界面
+      path: /
+      prefix_domain: admin
+  upstreams:
+    - location: /
+      domain_prefix: admin
+      backend: http://admin:80
+    - location: /
+      backend: http://main:80
+```
+
+`prefix_domain` 的最终形式为 `<prefix>-<实际子域名>.<微服根域>`。它负责选择入口域名；真正的后端分流仍由 `upstreams[].domain_prefix` 或应用内代理完成。
+
+官方 manifest 还记录了 `ext_config.default_prefix_domain`，用于调整点击应用默认打开的域名前缀。`ext_config` 属实验性区域，只有当前官方规范和目标系统明确支持时才使用，不要为了普通多入口场景优先依赖它。
+
+## 4. 何时使用应用内代理
+
+`application.routes` 不能按域名前缀选择不同 backend。若不使用 `upstreams.domain_prefix`，可把所有 HTTP 请求转给同一 Nginx/OpenResty service，再由 `server_name` 判断 Host。
+
+这类 route 应按官方方案使用完整 service DNS：
+
+```yml
+application:
+  routes:
+    - /=http://edge.cloud.lazycat.app.prefix-routing-demo.lzcapp:80
+```
+
+使用短名 `http://edge:80` 时，代理可能看不到用于域名分流的完整入口 Host。代理镜像与配置示例见 `advanced-routes.md`；不要恢复过时且未经当前官方确认的 `app-proxy` 固定标签。
+
+## 5. 与 L4、service DNS、跨应用访问的边界
+
+1. **前缀域名流量会忽略 TCP/UDP Ingress。** `admin-...` 等前缀不能用来为不同 L4 服务分流；L4 使用应用默认域名对应的入口。
+2. `domain_prefix` 是当前应用 HTTP 入口规则，不是创建新应用，也不改变 service DNS。
+3. `<service>.<package-id>.lzcapp` 用于应用内 service 定位及特定 Host 保留场景，不应当成跨应用 HTTP API。
+4. 代表用户访问另一个应用，应使用 `app.<target-package-id>.lzcx` 并遵循官方委托访问权限与票据规则。
+
+## 6. 验证清单
+
+- 从 `LAZYCAT_APP_DOMAIN` 确认实际默认域名，而不是只看 manifest 请求值。
+- 分别访问默认域名和每个 `<prefix>-...` 域名，检查命中的 backend。
+- 如用代理分流，让代理记录实际 Host；不要硬编码完整设备域名。
+- 不要用前缀域名测试 L4 ingress；该流量按官方定义会忽略 ingress。

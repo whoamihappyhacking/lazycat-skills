@@ -3,6 +3,8 @@ node_modules
 .env
 .DS_Store
 *.lpk
+__pycache__/
+*.py[cod]
 
 # 第三方安装的技能（npx skills add 安装的，不要提交）
 .agents/

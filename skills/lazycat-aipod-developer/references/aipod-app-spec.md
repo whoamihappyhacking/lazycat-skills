@@ -1,213 +1,121 @@
-# AI 应用打包与发布规范
+# AI 应用：resource、型号 compose 与 startup gate
 
-## AI 应用结构
+核对日期：2026-10-08。当前依据：[AI Pod 应用专题](https://developer.lazycat.cloud/aipod/package/spec.html)；通用依据：[LPK V2 package](https://developer.lazycat.cloud/spec/package.html)、[资源导出规范](https://developer.lazycat.cloud/spec/resource-export.html)。写配置前执行 `references/spec-sync.md` 并单独读取 AI Pod 专页。
 
-`AI应用` 是在微服应用基础上，添加 `AI服务` 或 `AI浏览器插件` 的应用。安装后会自动部署服务到算力舱。
+## 1. 不再把 legacy 包布局当新规范
 
-### lpk 包目录结构
+AI 应用现在以微服应用加 **AIApp resource** 为核心：服务随设备型号部署，插件自动加载，快捷方式与依赖由资源 config/aipod.yml 描述。
 
-```
-ai-pod-service/              # AI 服务目录
-  docker-compose.yml          # 服务编排文件
-  README.md                   # 可选的说明文件
-  check_ollama.py             # 可选的检查脚本等
-content.tar                   # 微服应用内容
-extension.zip                 # 可选-浏览器插件
-icon.png                      # 应用图标
-manifest.yml                  # 应用清单
-```
+专题推荐的资源 payload：
 
-## 添加 AI 服务
-
-在 `lzc-build.yml` 中添加 `ai-pod-service` 字段：
-
-```yml
-# ai-pod-service: 指定算力舱的服务目录，会将里面的内容打包到lpk中
-ai-pod-service: ./ai-pod-service
+```text
+aipod/
+├── package.yml
+├── lzc-manifest.yml
+├── icon.png
+├── config/
+│   └── aipod.yml
+├── agxorin/
+│   └── docker-compose.yml
+├── thor/
+│   └── docker-compose.yml
+└── extensions/
+    ├── desktop.zip
+    └── android.crx
 ```
 
-该目录下必须包含 `docker-compose.yml`。目录内的资源可在 docker-compose 中通过路径引用。
+注意：这是 AIApp resource 的**内容布局**，不是自动等同通用 LPK 顶层或任意 resource-id 的完整打包声明。
 
-### 算力舱提供的环境变量
+### 专题与通用 V2 的未统一边界（必须说明）
 
-1. **数据持久化路径** `LZC_AGENT_DATA_DIR`
-   - 定义: `/ssd/lzc-ai-agent/data/<service_id>`
-   - 示例: `/ssd/lzc-ai-agent/data/cloud.lazycat.aipod.ai`
+- 当前 AI Pod 专题把 import_resources 示例放在 lzc-manifest.yml，而通用 V2 PackageConfig 明确该字段在 package.yml。
+- 专题给出的运行路径是 `/lzcapp/run/resources/aipod/<package-id>/`；通用资源规范则是 `/lzcapp/run/resources/<kind>/<package-id>/<resource-id>/...`。
+- 因此不能照抄专题就把 import_resources 加到 V2 manifest，也不能杜撰“default 资源 ID 会自动扁平化”的规则。
+- **必须先核实目标版本、官方支持的 AIApp 分发/导入工具和实际消费端目录。** 通用构建部分遵循 V2 schema；专用导入映射未确认时，交付时明确未验证，不能保证一个猜出的完整包可被消费。
 
-   ```yml
-   ollama:
-     volumes:
-       - ${LZC_AGENT_DATA_DIR}/data:/root/.ollama
-   ```
+旧 ai-pod-service、browser-extension 构建字段不因本页出现新版资源布局就自动断言 CLI 全部不支持；它们不作为新项目默认入口，兼容迁移需按目标工具链核验。
 
-2. **数据缓存路径** `LZC_AGENT_CACHE_DIR`
-   - 定义: `/ssd/lzc-ai-agent/cache/<service_id>`
+## 2. 型号目录与镜像
 
-   ```yml
-   ollama:
-     volumes:
-       - ${LZC_AGENT_CACHE_DIR}/cache:/root/.cache
-   ```
+1. Thor 优先 thor/docker-compose.yml。
+2. 其他默认 Jetson/AGX Orin 设备用 agxorin/docker-compose.yml。
+3. 型号目录缺失时才 fallback 到 legacy ai-pod-service/docker-compose.yml。
+4. 多个目录或 legacy 同时存在时，对外 AI host **必须一致**。
 
-3. **服务ID** `LZC_SERVICE_ID`
-   - 对应 LPK 中的 appId，但会将 `.` 去掉
-   - 示例: appId `cloud.lazycat.aipod.fish-speech` → `cloudlazycataipodfishspeech`
+不同硬件的 CPU 架构、JetPack/CUDA、驱动和镜像兼容性必须分别核实；不能把 AGX Orin 镜像直接宣称兼容 Thor。平台 Docker 默认 NVIDIA runtime，通常不需显式 gpus 配置；有特殊 runtime 需求时先核实，而非无条件禁止所有自定义配置。
 
-   ```yml
-   ollama:
-     labels:
-       - "traefik.http.routers.${LZC_SERVICE_ID}-ollama.rule=Host(`ollama-ai`)"
-   ```
+### 最小 Traefik 服务示例
 
-> **重要**: 算力舱中的 Docker 默认使用 `nvidia-runtime`，容器中可直接使用 GPU，不需要显式指定 `gpus` 配置。
+下列是官方已有 whoami 演示服务，仅说明路由结构，不宣称它是模型服务或已覆盖所有型号：
 
-### 配置 AI 服务 Traefik 访问规则
-
-算力舱使用 `traefik` 通过 `Host` 规则做服务转发。
-
-1. **Host 规则** - 域名**必须**以 `-ai` 结尾
-
-   ```yml
-   services:
-     ollama:
-       labels:
-         - "traefik.enable=true"
-         - "traefik.http.routers.${LZC_SERVICE_ID}-ollama.rule=Host(`ollama-ai`)"
-   ```
-
-2. **Traefik 网络** - 必须加入 `traefik-shared-network`
-
-   推荐设为默认网络：
-
-   ```yml
-   networks:
-     default:
-       external: true
-       name: traefik-shared-network
-   ```
-
-   或服务级别指定：
-
-   ```yml
-   services:
-     myservice:
-       networks:
-         - traefik-shared-network
-   ```
-
-### 完整的 docker-compose.yml 示例
-
-```yml
+```yaml
+# agxorin/docker-compose.yml；对应 thor 文件也需保持相同 whoami-ai host
 services:
   whoami:
     image: registry.lazycat.cloud/traefik/whoami:ab541801c8cc
     labels:
-      - "traefik.http.routers.whoami.rule=Host(`whoami-ai`)"
-
+      - "traefik.enable=true"
+      - "traefik.http.routers.${LZC_SERVICE_ID}-whoami.rule=Host(`whoami-ai`)"
 networks:
   default:
     external: true
     name: traefik-shared-network
 ```
 
-## 添加 AI 浏览器插件
+- 可解析的 Host(...) label 和 `-ai` 后缀是平台识别条件。
+- 服务必须加入 traefik-shared-network。
+- 长初始化模型服务**必须**有真实 healthcheck；探针要检查 ready，而非只检查进程存在，且所用 curl/wget/解释器必须在镜像中。
+- AI host 一致不代表各设备实现、内存占用或模型结果一致，须真机验证。
 
-在 `lzc-build.yml` 中添加 `browser-extension` 字段：
+## 3. 数据、缓存与标识
 
-```yml
-# browser-extension: 浏览器插件，支持 zip 文件或目录
-browser-extension: ./my-awesome-chrome-extension.zip
+| 环境变量 | 作用 |
+| --- | --- |
+| `LZC_AGENT_DATA_DIR` | `/ssd/lzc-ai-agent/data/<service_id>`，用户/服务持久化数据 |
+| `LZC_AGENT_CACHE_DIR` | `/ssd/lzc-ai-agent/cache/<service_id>`，可重建缓存 |
+| `LZC_SERVICE_ID` | appId 去掉点后的服务标识，用于 Traefik 名称 |
+
+Compose volumes 使用环境变量，而不是写死真实设备路径；例如 `${LZC_AGENT_DATA_DIR}/data:/data`。不要因资源布局迁移改变实例/目录而丢旧模型或用户数据，先备份并设计迁移。
+
+## 4. config/aipod.yml
+
+配置文件**不带外层 aipod:**：
+
+```yaml
+# config/aipod.yml
+shortcut:
+  disable: false
+  title: Whoami
+  url: /_lzc/aipod_backend/startup/gate/cloud.lazycat.aipod.whoami?redirect=https%3A%2F%2Fwhoami-ai
+locales:
+  en:
+    shortcut:
+      title: Whoami
+depends_on_hosts:
+  - whoami-ai
 ```
 
-## 配置快捷方式
+- shortcut.disable 默认为 false；还可定义 title/url/favicon。
+- depends_on_hosts 是本应用自己的 AI host；depends_on_others 是依赖的其他 AI host，不能与 Compose depends_on 混用。
+- storage_alias 声明服务存储别名，需按实际模型/数据布局配置，不凭别名获得任意宿主目录访问。
+- metadata 缺失时按资源内 package.yml → lzc-manifest.yml → icon.png 兜底；AI 浏览器展示以 resource 配置为准。
 
-在 `lzc-manifest.yml` 中配置：
+## 5. 插件与启动入口
 
-```yml
-aipod:
-  shortcut:
-    disable: false  # 设为 true 则不在 AI 浏览器显示快捷方式
-```
+- 浏览器插件放 extensions/，支持 zip/crx，可多个；适配 PC/Android 需分别验证权限、宿主能力和打包格式。
+- legacy browser-extensions/extension.zip 只在缺新版插件时 fallback。
+- 不再默认每个应用内置 caddy-aipod 做启动判断，优先平台 gate：
+  `/_lzc/aipod_backend/startup/gate/:appid?redirect=<URL编码目标>`。
+- appid 填真实应用包 ID，redirect URL 编码；ready/loading/失败提示复用平台与容器 healthcheck，gate 不代替业务鉴权。
+- 静态前端拦截模板见官方专题：保留深链接和 query，排除 API/资源/icon/平台内部路径，避免重定向循环。不要机械复制专题中的 public_path 放开所有业务 API；只在确有独立鉴权且授权时开放。
+- ready cookie 是平台启动流程提示，不是可以信任的业务授权凭据。
 
-在 `aipod` 字段中仅支持 `.SysParams(.S)` 中的 `.BoxName` 和 `.BoxDomain` 模板参数。
+## 6. 交付与兼容验收
 
-## 添加启动进度提示（caddy-aipod）
+1. 确认资源打包/导入映射及消费端支持，不以通用资源静态发现代替 AIApp 业务消费验证。
+2. 构建后的 V2 包必须有 package.yml，manifest 不混旧静态元数据；在副本中检查归档与配置。
+3. 各目标型号真机安装/启动，验证 host、healthcheck、gate、插件和模型能力。
+4. 验证重启/升级/资源重载时数据与依赖不丢失；旧包兼容路径需要专门测试。
+5. 发布遵循当前[商店八项审核](https://developer.lazycat.cloud/store-submission-guide.html)；不得声称特殊 AI 包一定通过审核。
 
-AI 应用需要显示算力舱服务启动进度时，使用 `caddy-aipod` 中间件：
-
-```yml
-# lzc-manifest.yml
-name: ComfyUI
-package: cloud.lazycat.aipod.comfyui
-version: 1.0.5
-description: 最强大的开源基于节点的生成式人工智能应用程序
-
-aipod:
-  shortcut:
-    disable: false
-
-application:
-  subdomain: comfyui
-  routes:
-    - /=http://caddy:80
-
-services:
-  caddy:
-    image: registry.lazycat.cloud/catdogai/caddy-aipod:65e058ce
-    setup_script: |
-      cat <<'EOF' > /etc/caddy/Caddyfile
-      {
-              auto_https off
-              http_port 80
-              https_port 0
-      }
-      :80 {
-              handle {
-                      route {
-                              lzcaipod
-                              root * /lzcapp/pkg/content/ui/
-                              try_files {path} /index.html
-                              header Cache-Control "max-age=60, private, must-revalidate"
-                              file_server
-                      }
-              }
-      }
-      EOF
-      cat /etc/caddy/Caddyfile
-```
-
-关键：`Caddyfile` 中的 `lzcaipod` 指令会检测算力舱服务是否运行并给出进度提示。
-
-## AI 应用依赖算力舱服务健康检测（微服 1.3.8+）
-
-使用 `upstreams` 访问算力舱的 health check 接口：
-
-```yml
-application:
-  subdomain: comfyui
-  gpu_accel: true
-  routes:
-    - /=file:///lzcapp/pkg/content/dist
-  health_check:
-    test_url: http://127.0.0.1/version
-    start_period: 5m
-
-  upstreams:
-    - location: /version
-      backend: https://comfyui-ai.{{ .S.BoxDomain }}/api/manager/version
-      trim_url_suffix: /
-      use_backend_host: true
-      dump_http_headers_when_5xx: true
-```
-
-## 发布 AI 应用
-
-1. 算力舱分类：https://appstore.lazycat.cloud/#/shop/category/27
-2. 发布方式与普通微服应用一致，通过 `lzc-cli` 或开发者平台提交
-3. 提交时写上 `AI Pod` 或 `算力舱` 关键词，方便审核分类
-
-## 指定某一个算力舱上的服务
-
-多个算力舱时，通过域名格式访问：`f-{算力舱序列号}-{服务名称}-ai.{微服名称}.heiyu.space`
-
-示例：`https://f-1420225016421-dozzle-ai.your-box-name.heiyu.space`
+多算力舱访问格式仅使用占位符：`f-{算力舱序列号}-{服务名}-ai.{微服名}.heiyu.space`。需要实际微服名时执行 lzc-cli box default，不在技能中保存真实设备信息。

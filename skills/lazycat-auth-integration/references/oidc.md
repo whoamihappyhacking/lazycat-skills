@@ -1,43 +1,34 @@
-lzcapp对接微服的OIDC
-====================
+# 对接微服 OIDC
 
-v1.3.5+提供了统一的oidc的支持，lzcapp适配oidc后即可自动获取uid和对应权限组(`ADMIN`代表管理员)
+懒猫微服从 `lzcos 1.3.5+` 提供统一 OIDC。LPK V2 配置示例另要求 `lzcos >= 1.5.0` 与 `lzc-cli >= 2.0.0`。
 
-开发者只需要在manifest.yml中提供以下两个信息即可完成适配。
+官方原文：
 
-1. 在`application.oidc_redirect_path`中填写正确的oidc回调地址
-     这个路径一般是`/oauth2/callback`或者`/auth/oidc.callback`，
-     具体需要查阅应用本身的文档。如果应用文档未提供相关信息，可以先随便填写一个，
-     登录时浏览器报错时可以查看到实际使用的路径。
+- <https://developer.lazycat.cloud/advanced-oidc.html>
+- <https://developer.lazycat.cloud/advanced-envs.html#deploy_envs>
 
-2. 通过部署时环境变量获取系统自动生成的相关环境变量给实际应用即可。
-    必填项为`client_id`、`client_secret`。
-    部分应用额外只需要填写一个ISSUER信息，剩下的会自动事实探测。
-    部分应用则需要填写多个具体ENDPOINT的信息， 具体支持的信息可以参考[部署时环境变量](./advanced-envs#deploy_envs)。
+## 接入步骤
 
+1. 阅读目标应用的 OIDC 文档，确认它支持的登录流、环境变量名与**准确回调路径**。
+2. 在 `lzc-manifest.yml` 设置 `application.oidc_redirect_path`。只有存在该字段，系统才生成 OIDC client 环境变量。
+3. 将平台变量映射到应用要求的变量。优先提供 issuer，让支持 discovery 的应用自行发现 endpoint；不支持时再逐项提供 endpoint。
+4. 验证登录、登出、权限组和回调失败场景。
 
-::: warning oidc_redirect_path
-必须设置了`application.oidc_redirect_path`系统才会动态生成oidc client相关的环境变量
+## LPK V2 示例
 
-如果您不知道这个值应该填写什么，可以先随便填写，一般应用的报错页面会告知您正确值。
-:::
+以下沿用官方文档中的 Outline 镜像、回调和 OIDC 环境变量，只展示 **OIDC 相关片段**。Outline 还依赖数据库、Redis、持久存储及其他应用配置，必须按 Outline 部署文档补齐；本片段不是可独立启动的完整应用。
 
-
-比如outline这个应用的OIDC适配，根据[outline官方文档](https://docs.getoutline.com/s/hosting/doc/oidc-8CPBm6uC0I)得知需要设置以下环境变量
-* `OIDC_CLIENT_ID` – OAuth client ID
-* `OIDC_CLIENT_SECRET` – OAuth client secret
-* `OIDC_AUTH_URI`
-* `OIDC_TOKEN_URI`
-* `OIDC_USERINFO_URI`
-
-在manifest.yml中可以这样填写
-```yml
-name: Outline
+```yaml
+# package.yml：静态元数据片段
 package: cloud.lazycat.app.outline
 version: 0.0.1
+name: Outline
+```
+
+```yaml
+# lzc-manifest.yml：OIDC 相关运行结构片段
 application:
   subdomain: outline
-  #outline官方文档没有提供这个信息，但通过报错信息可以得到这个地址
   oidc_redirect_path: /auth/oidc.callback
   routes:
     - /=http://outline.cloud.lazycat.app.outline.lzcapp:3000
@@ -52,66 +43,36 @@ services:
       - OIDC_USERINFO_URI=${LAZYCAT_AUTH_OIDC_USERINFO_URI}
 ```
 
+左侧变量名来自 Outline 官方接入要求；适配其他应用时必须以该应用文档为准。支持 issuer discovery 的应用可按其要求改为传入 `${LAZYCAT_AUTH_OIDC_ISSUER_URI}`。
 
-oidc issuer info
-===============
+## 平台变量
 
-访问`https://$微服名称.heiyu.space/sys/oauth/.well-known/openid-configuration#/`可以获取完整的issuer信息。
+| 变量 | 用途 |
+| --- | --- |
+| `LAZYCAT_AUTH_OIDC_CLIENT_ID` | client ID |
+| `LAZYCAT_AUTH_OIDC_CLIENT_SECRET` | 动态 client secret |
+| `LAZYCAT_AUTH_OIDC_ISSUER_URI` | issuer |
+| `LAZYCAT_AUTH_OIDC_AUTH_URI` | authorization endpoint |
+| `LAZYCAT_AUTH_OIDC_TOKEN_URI` | token endpoint |
+| `LAZYCAT_AUTH_OIDC_USERINFO_URI` | userinfo endpoint |
 
-然后使用 `https://$LAZYCAT_BOXDOMAIN/$endpoint_path`即可自行获取任何endpoint的地址信息。
+这些是部署时变量，仅在存在 `oidc_redirect_path` 时注入。不要把 client secret 固化到镜像或持久化数据库；应用必须能从环境变量读取变化后的值。
 
+## Discovery 与身份
 
-```json
-{
-"issuer": "https://your-box-name.heiyu.space/sys/oauth",
-"authorization_endpoint": "https://your-box-name.heiyu.space/sys/oauth/auth",
-"token_endpoint": "https://your-box-name.heiyu.space/sys/oauth/token",
-"jwks_uri": "https://your-box-name.heiyu.space/sys/oauth/keys",
-"userinfo_endpoint": "https://your-box-name.heiyu.space/sys/oauth/userinfo",
-"device_authorization_endpoint": "https://your-box-name.heiyu.space/sys/oauth/device/code",
-"introspection_endpoint": "https://your-box-name.heiyu.space/sys/oauth/token/introspect",
-"grant_types_supported": [
-"authorization_code",
-"refresh_token",
-"urn:ietf:params:oauth:grant-type:device_code",
-"urn:ietf:params:oauth:grant-type:token-exchange"
-],
-"response_types_supported": [
-"code"
-],
-"subject_types_supported": [
-"public"
-],
-"id_token_signing_alg_values_supported": [
-"RS256"
-],
-"code_challenge_methods_supported": [
-"S256",
-"plain"
-],
-"scopes_supported": [
-"openid",
-"email",
-"groups",
-"profile",
-"offline_access"
-],
-"token_endpoint_auth_methods_supported": [
-"client_secret_basic",
-"client_secret_post"
-],
-"claims_supported": [
-"iss",
-"sub",
-"aud",
-"iat",
-"exp",
-"email",
-"email_verified",
-"locale",
-"name",
-"preferred_username",
-"at_hash"
-]
-}
+Issuer 当前形如：
+
+```text
+https://your-box-name.heiyu.space/sys/oauth
 ```
+
+对应 discovery 文档可从微服 OIDC 地址获取。不要根据示例域名写死 endpoint；优先使用注入的 issuer/endpoint。
+
+OIDC 可提供 UID 与用户组语义（管理员组为 `ADMIN`）。目标应用仍应按其 OIDC 实现正确校验 `iss`、`aud`、签名、`exp`、state/nonce；不能只解析未验证的 claim。
+
+## 排错
+
+- 没有 OIDC 变量：先检查 `application.oidc_redirect_path` 是否存在。
+- redirect mismatch：以目标应用实际请求的回调路径修正配置，不要长期保留猜测值。
+- 登录循环：核对应用外部 URL、反代 HTTPS 识别、issuer 与 cookie 配置。
+- 权限错误：记录非敏感 claim 结构，核对应用的 group/role 映射；禁止记录 Token 或 client secret。

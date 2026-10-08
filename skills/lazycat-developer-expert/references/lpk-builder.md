@@ -1,98 +1,51 @@
-# 懒猫微服 LPK V2 打包与移植指南
+# LPK V2 打包与移植流程
 
-你是一个专业的懒猫微服应用生态开发者。你的任务是协助用户按最新的 **LPK V2** 规范将应用打包为 `lpk` 格式。
+本文件与 lazycat-lpk-builder/SKILL.md 的核心流程同步；详细字段以本技能携带的共享 references 为准，不依赖同时安装其他技能。
 
-## LPK V2 核心结构
+## 0. 规范校准
 
-LPK V2 将元数据与运行配置分离，推荐的项目结构如下：
+写/改 package、manifest、build 或执行 build/deploy/release 前，**必须读取并执行 `references/spec-sync.md`**。记录目标 lzcos/CLI 版本，获取官方原文，核对快照并声明差异。基线 lzcos >=1.5.0 + lzc-cli >=2.0.0，各新能力另核验门槛；网络失败只能显式声明快照降级，不能声称校准成功。
 
-```text
-.
-├── package.yml          # 静态元数据与权限声明 (必填)
-├── lzc-manifest.yml     # 运行时配置 (路由、服务、注入)
-├── lzc-build.yml        # 默认构建配置 (Release)
-├── lzc-build.dev.yml    # 开发态覆盖配置 (可选)
-├── icon.png             # 应用图标 (1:1, <200KB)
-└── content/             # 静态资源目录 (可选)
+## 1. 需求与配置
+
+分析架构、端口/协议、镜像入口/UID、依赖、内部数据与用户文件、业务鉴权和最小权限。按需读取：
+
+| 文件/问题 | 参考 |
+| --- | --- |
+| package.yml：身份、版本、权限 | `references/package-spec.md` |
+| lzc-manifest.yml：运行结构 | `references/manifest-spec.md` |
+| lzc-build.yml / lzc-build.dev.yml | `references/build-spec.md` |
+| 静态资源导入/导出 | `references/resource-export.md` |
+| 权限、初始化、持久化、探针 | `references/troubleshooting.md` |
+| 发布与八项审核清单 | `references/store-publish.md` |
+
+V2 静态元数据、权限、import_resources 不放 manifest 顶层。dev 只保留差异；package_override 按顶层整体覆盖；image-only 可不带内容归档。buildscript 不得调用 project build。
+
+## 2. 打包、验收与授权
+
+```bash
+lzc-cli --version
+lzc-cli project build -o release.lpk
 ```
 
-## 核心流程
+核查 Build config、tar 内 package.yml/manifest.yml、content 与 resource/镜像 lock。带 #@build/Go template 的文件按真实阶段渲染后严格检查，不接受重复键或把模板替换为任意值后就宣称应用可运行。
 
-### 1. 编写元数据与权限 (`package.yml`)
-自 LPK V2 起，所有静态字段必须在此声明。**必须**显式声明权限。
+只有授权后安装/开发部署：
 
-```yaml
-package: cloud.lazycat.app.demo
-version: 1.0.0
-name: 示例应用
-permissions:
-  required:
-    - net.internet
-    - document.private  # 推荐使用私有文稿权限
+```bash
+lzc-cli app install ./release.lpk
+lzc-cli project deploy
 ```
 
-### 2. 编写清单配置 (`lzc-manifest.yml`)
-仅保留运行时配置。
+验证首装、升级、重启、数据、权限、免密登录与业务接口。用 `lzc-cli docker` 查看应用；需微服名时执行 `lzc-cli box default`。本地校验和真实部署必须分开报告。
 
-```yaml
-application:
-  subdomain: demo
-  routes:
-    - /=file:///lzcapp/pkg/content/dist
-  upstreams:
-    - location: /api
-      backend: http://server:8080
-      disable_trim_location: true # 保留前缀
-services:
-  server:
-    image: my-image:latest
-```
+## 3. 护栏
 
-### 3. 编写构建配置 (`lzc-build.yml`)
-```yaml
-buildscript: sh build.sh
-manifest: ./lzc-manifest.yml
-contentdir: ./content
-pkgout: ./
-icon: ./icon.png
-```
+- 内部数据放 var，可重建缓存放 cache；用户文件使用有权限的 `/lzcapp/documents/$uid`；不默认旧 home 挂载。
+- 数字 run_as（>=1.6.0）需兼容镜像入口，不与同 service 的 user/setup_script 混用；不默认 root/privileged。
+- routes 默认裁前缀，保留用 upstreams；非 HTTP 用 ingress，不随意接管 80/443。
+- 开发机代理需要 via.client 和 ctx.dev.id，参见 build-spec 的完整模板。
+- 服务 `.lzcapp` DNS 不是用户委托入口；代表真实用户互访读取 `references/app-interconnect.md`。
+- public_path 不代替业务鉴权；远端发布、提权和凭据操作须明确授权。
 
-### 4. 开发态调试 (`lzc-build.dev.yml`)
-支持覆盖配置，例如切换到本地开发服务器：
-
-```yaml
-pkg_id: cloud.lazycat.app.demo.dev
-envs:
-  - DEV_MODE=1
-```
-
-在 `lzc-manifest.yml` 中配合 `#@build` 宏：
-```yaml
-#@build if env.DEV_MODE=1
-application:
-  injects:
-    - id: dev-proxy
-      on: request
-      when: ["/*"]
-      do: "ctx.proxy.to('http://127.0.0.1:3000')"
-#@build else
-application:
-  routes:
-    - /=file:///lzcapp/pkg/content/dist
-#@build end
-```
-
-## 平台规则与护栏
-
-1. **元数据位置**：严禁将 `package`, `version`, `name` 等写在 `lzc-manifest.yml`。
-2. **权限声明**：未在 `package.yml` 声明的权限将无法使用。
-3. **私有存储**：推荐使用 `document.private` 权限，路径为 `/lzcapp/documents/$uid`。废弃旧的 `/lzcapp/run/mnt/home` 挂载。
-4. **路由转发**：`routes` 默认去掉前缀；如需保留，必须使用 `upstreams` 并设置 `disable_trim_location: true`。
-5. **部署参数随机值**：`lzc-deploy-params.yml` 中的 `default_value` 支持 `$random(len=5)`。
-
-## 常用命令
-
-- **开发部署**: `lzc-cli project deploy` (优先使用 `.dev.yml`)
-- **正式打包**: `lzc-cli project build` 或 `lzc-cli project release`
-- **查看日志**: `lzc-cli docker logs -f <container>`
-- **进入容器**: `lzc-cli docker exec -it <container> sh`
+交付写明校准来源/摘要、目标版本、包位置、实际验证、未验证项与需授权动作。

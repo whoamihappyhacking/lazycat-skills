@@ -1,66 +1,77 @@
 ---
 name: lazycat-auth-integration
-description: 用于处理懒猫微服(Lazycat MicroServer)应用接入官方认证体系（OIDC单点登录）、HTTP Header用户身份识别、API Auth Token 以及配置独立鉴权(public_path)的专业指南。
+description: 懒猫微服应用接入 OIDC、Ingress 身份 Header、API Auth Token、public_path 与应用间用户委托访问时使用的认证安全指南。
 ---
 
-# 懒猫微服认证体系接入指南
+# 懒猫微服认证接入
 
-你是一个专业的懒猫微服认证与权限配置专家。当开发者需要让应用实现免密登录（接入 OIDC）、识别当前请求用户信息、或放行部分公共 API 时，请遵循本指南。
+先确认目标 `lzcos` 与 `lzc-cli` 版本；编写配置前必须读取 `references/spec-sync.md`，按其中流程现场核对官方原文。LPK V2 示例要求 `lzcos >= 1.5.0`、`lzc-cli >= 2.0.0`；更老目标不能直接套用。
 
-## 1. 接入 OIDC 单点登录 (SSO)
-懒猫微服 (v1.3.5+) 提供了统一的 OIDC 支持，允许应用自动获取用户信息和权限组（`ADMIN` 或 `NORMAL`），实现免密登录。
+## 先选机制
 
-**配置方法 (`lzc-manifest.yml`):**
-1. 声明 OIDC 回调路径 (`application.oidc_redirect_path`)。系统只要检测到这个字段，就会在部署时自动注入相关的环境变量。
-2. 将系统生成的 OIDC 环境变量传递给应用。
+| 需求 | 机制 | 最低系统版本 | 必读 |
+| --- | --- | --- | --- |
+| 应用使用统一登录 | OIDC | `1.3.5+` | `references/oidc.md` |
+| 后端识别平台用户 | Ingress 注入 Header | 以目标版本官方文档为准 | `references/http-request-headers.md` |
+| 脚本访问系统 API | API Auth Token | `1.4.3+` | `references/api-auth-token.md` |
+| 极少数路径绕过平台 HTTP 登录 | `public_path` | 以目标版本官方文档为准 | `references/public-api.md` |
+| 应用代表当前用户访问自身/其他应用 | `.lzcx` + 委托票据 | `1.5.2+` | `references/app-interconnect.md` |
 
-**示例:**
+## OIDC 最小流程
+
+1. 从上游应用文档确认**准确**回调路径。
+2. 在 `lzc-manifest.yml` 设置 `application.oidc_redirect_path`；没有此字段就不会生成 OIDC 环境变量。
+3. 仅把应用需要的 OIDC 变量传入对应服务，优先使用 issuer discovery。
+4. 不把动态生成的 client secret 写入镜像、数据库或文档。
+
+以下沿用官方 Outline 镜像与回调，只展示 **OIDC 相关片段**；Outline 所需数据库、Redis、存储及其他环境变量仍须按其部署文档配置，本片段不能独立启动。
+
 ```yaml
+# package.yml（LPK V2 静态元数据片段）
+package: cloud.lazycat.app.outline
+version: 0.0.1
+name: Outline
+```
+
+```yaml
+# lzc-manifest.yml（OIDC 相关运行配置片段）
 application:
-  subdomain: myapp
-  oidc_redirect_path: /auth/oidc.callback # 必须填写！系统据此生成环境变量。请查阅应用的 OIDC 文档获取准确路径。
+  subdomain: outline
+  oidc_redirect_path: /auth/oidc.callback
+  routes:
+    - /=http://outline.cloud.lazycat.app.outline.lzcapp:3000
 services:
-  myapp:
-    image: xxx
+  outline:
+    image: registry.lazycat.cloud/tx1ee/outlinewiki/outline:fb0e2ef4f32f3601
     environment:
       - OIDC_CLIENT_ID=${LAZYCAT_AUTH_OIDC_CLIENT_ID}
       - OIDC_CLIENT_SECRET=${LAZYCAT_AUTH_OIDC_CLIENT_SECRET}
-      - OIDC_ISSUER_URI=${LAZYCAT_AUTH_OIDC_ISSUER_URI}
       - OIDC_AUTH_URI=${LAZYCAT_AUTH_OIDC_AUTH_URI}
       - OIDC_TOKEN_URI=${LAZYCAT_AUTH_OIDC_TOKEN_URI}
       - OIDC_USERINFO_URI=${LAZYCAT_AUTH_OIDC_USERINFO_URI}
 ```
 
-## 2. HTTP Headers 身份识别 (自定义后端)
-如果用户是在自己开发后端代码，`lzc-ingress` 会在所有经过认证的请求到达应用容器前，自动注入以下 HTTP Headers。开发者可直接信任这些 Header。
+左侧变量名来自 Outline 官方接入要求；适配其他应用时必须按该应用文档调整。右侧 `LAZYCAT_AUTH_OIDC_*` 是平台变量。
 
-- `X-HC-User-ID`: 登录的用户名 (UID)
-- `X-HC-User-Role`: 用户角色 (`NORMAL` 或 `ADMIN`)
-- `X-HC-Device-ID`: 客户端在当前微服内的唯一设备 ID
-- `X-HC-Login-Time`: 登录时间的 Unix 时间戳
+## 身份 Header 的边界
 
-**注意：** 应用后端可直接根据 `X-HC-User-ID` 认为该用户已登录，无需再次验证密码。
+- 仅在请求确定经过平台 Ingress 的信任边界时，才把平台生成的 `X-HC-*` 当作身份依据；不要信任客户端自行传入的同名值。
+- 普通已登录客户端请求通常包含用户与设备上下文；**API Auth Token 不注入 `X-HC-Device-ID`/`X-HC-Device-PeerID`，委托请求也不带完整客户端设备上下文**。
+- `public_path` 上鉴权失败时，平台会清空身份 Header。因此代码必须先检查 `X-HC-User-ID` 是否存在，不能把“路径可访问”当作“用户已登录”。
 
-## 3. 独立鉴权与免登录访问 (`public_path`)
-默认情况下，所有 HTTP 请求都必须经过懒猫微服的强制登录认证。如果应用有自己的鉴权机制（如 Token），或者这是一个公开页面（如分享链接），可以通过 `public_path` 放行。
+## API Auth Token 的正确语义
 
-**配置方法 (`lzc-manifest.yml`):**
-```yaml
-application:
-  public_path:
-    - /api/public/  # 放行 /api/public/ 开头的路径
-    - /share/       # 放行 /share/ 开头的路径
-```
-**注意：** 放行的路径，系统依然会尝试获取登录状态。如果已登录，`X-HC-User-ID` 等 Header 依旧会存在；如果未登录，则清空相关 Header 但**不拦截请求**。
+请求使用 `Lzc-Api-Auth-Token: ${LZC_API_TOKEN}` 做**平台鉴权**，该敏感 Header 在转发到应用前会被移除。移除 Token 不等于鉴权后的请求不能到达应用；它只表示后端收不到该 Token。若应用接口还有自己的业务鉴权，调用方必须另行满足，不能把平台 Token 当作业务 Token。
 
-## 4. 脚本与自动化调用 (API Auth Token)
-当需要编写脚本（如 Python, bash）调用微服系统 API 或应用接口时，不能依赖浏览器的 Cookie。懒猫 (v1.4.3+) 提供了 `API Auth Token` 机制。
+## `public_path` 最小权限原则
 
-**获取方式：** 只能通过 SSH 进入微服命令行生成。
-```bash
-hc api_auth_token gen --uid admin
-```
-**调用方式：** 在 HTTP 请求头中带上 `Lzc-Api-Auth-Token: <token>`。
+默认不要配置。确需 webhook、分享下载等入口时，只放行经过风险审查的精确窄路径，并在应用层校验签名、一次性令牌或等价凭据；不要无条件开放 `/`、管理接口、文件读取接口或调试接口。
 
-## 平台兼容性说明
-如果遇到更复杂的 OIDC 配置问题、Header 拦截问题，请主动读取本技能包 `references/` 目录下的相关 Markdown 文档（`oidc.md`, `http-request-headers.md`, `public-api.md`, `api-auth-token.md`）。
+## 交付检查
+
+- `package.yml` 与 `lzc-manifest.yml` 已按 LPK V2 分离，字段与目标版本匹配。
+- OIDC 回调路径与应用实际回调完全一致，issuer/endpoints 未凭空拼接。
+- 无真实 Token、client secret、弱口令或真实设备域名。
+- Header 信任边界明确，缺少设备 Header 时能够安全降级。
+- `public_path` 已缩到最小范围，并有应用层鉴权与未登录测试。
+- 应用互访只申请 `self_delegate`/`user_delegate` 中实际需要的一项。
